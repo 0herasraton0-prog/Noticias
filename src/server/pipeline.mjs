@@ -41,6 +41,14 @@ export async function withRetries(task, attempts = 3) {
   throw lastError;
 }
 
+function isFatalCycleError(error) {
+  const status = error?.status ?? error?.statusCode;
+  const code = error?.code ?? error?.error?.code;
+  if (Number.isFinite(status) && status >= 400) return true;
+  if (["insufficient_quota", "project_spend_limit_exceeded", "credit_balance_exhausted"].includes(code)) return true;
+  return /monthly API budget|OPENAI_API_KEY|invalid api key|model.*not found|database|connection|ECONN|ETIMEDOUT|fetch failed|network error/i.test(String(error?.message || ""));
+}
+
 export async function discoverCandidates(sql, now) {
   const recent = await sql`SELECT title, topic_key FROM articles WHERE created_at > ${new Date(now.getTime() - 14 * 86400000)} ORDER BY created_at DESC LIMIT 80`;
   const brief = recent.map((row) => `${row.title} [${row.topic_key}]`).join("\n");
@@ -189,7 +197,10 @@ export async function runEditorialCycle(sql, cycle) {
       const failure = { title: candidate.title, kind: candidate.kind, reason: String(error.message).slice(0, 500) };
       console.warn("Editorial candidate failed", JSON.stringify(failure));
       report.failed.push(failure);
-      if (/monthly API budget|insufficient_quota|spend_limit|credit_balance/i.test(failure.reason)) break;
+      if (isFatalCycleError(error)) {
+        console.error("Editorial cycle stopped after a system-level error", JSON.stringify(failure));
+        break;
+      }
     }
   }
 
