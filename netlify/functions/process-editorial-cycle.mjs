@@ -50,6 +50,7 @@ export default async (request) => {
           console.info("Previous editorial cycle summary", JSON.stringify({
             scheduledAt: scheduledAt.toISOString(),
             candidates: report.candidates ?? null,
+            attempted: report.attempted ?? null,
             published: report.published?.length ?? 0,
             failed: report.failed?.length ?? 0,
           }));
@@ -81,6 +82,7 @@ export default async (request) => {
         console.info("Editorial cycle completed", {
           cycleId: cycle.id,
           candidates: report.candidates,
+          attempted: report.attempted ?? null,
           published: report.published.length,
           failed: report.failed.length,
           failures: report.failed,
