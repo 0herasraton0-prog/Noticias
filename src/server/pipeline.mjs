@@ -31,7 +31,7 @@ export async function withRetries(task, attempts = 3) {
       lastError = error;
       const status = error?.status ?? error?.statusCode;
       const code = error?.code ?? error?.error?.code;
-      if (status === 401 || status === 403 || code === "insufficient_quota" || code === "project_spend_limit_exceeded" || code === "credit_balance_exhausted" || /duplicate topic|duplicate article slug|insufficient independent source|discrepancy was not resolved|review blocked article/i.test(error.message)) throw error;
+      if (status === 401 || status === 403 || code === "insufficient_quota" || code === "project_spend_limit_exceeded" || code === "credit_balance_exhausted" || /duplicate topic|duplicate article slug|insufficient independent source|discrepancy was not resolved|review blocked article|did not verify an event date|monthly API budget/i.test(error.message)) throw error;
       if (attempt < attempts) await new Promise((resolve) => setTimeout(resolve, attempt * 900));
     }
   }
@@ -86,14 +86,29 @@ async function writeAndReview(candidate, researchPack) {
   return article;
 }
 
-async function saveArticle(sql, article, candidate, sources, image, cycleId) {
+// Cover photo is optional: if no commercially licensed photo is found, the
+// article is published without one and the site shows a typographic card.
+async function pickCover(candidate) {
+  for (const query of [candidate.topic, candidate.title]) {
+    if (!query) continue;
+    try {
+      const image = await findCommercialPhoto(query);
+      if (image?.url) return image;
+    } catch (error) {
+      console.warn("Cover image lookup failed", String(error.message).slice(0, 200));
+    }
+  }
+  return null;
+}
+
+async function saveArticle(sql, article, sources, image, cycleId) {
   const duplicate = await sql`SELECT id FROM articles WHERE topic_key = ${article.topic_key} AND created_at > now() - interval '45 days' LIMIT 1`;
   if (duplicate.length) throw new Error("Duplicate topic in the recent archive");
 
   const inserted = await sql.begin(async (tx) => {
     const rows = await tx`
       INSERT INTO articles (slug, topic_key, title, dek, body, kind, category, region, event_date, published_at, status, cover_url, cover_source_url, cover_credit, cover_license, tags, reading_minutes, cycle_id)
-      VALUES (${slugify(article.title)}, ${article.topic_key}, ${article.title}, ${article.dek}, ${tx.json(article.body)}, ${article.kind}, ${article.category}, ${article.region}, ${article.event_date}, now(), 'published', ${image.url}, ${image.sourceUrl}, ${image.credit}, ${image.license}, ${tx.array(article.tags)}, ${article.reading_minutes}, ${cycleId})
+      VALUES (${slugify(article.title)}, ${article.topic_key}, ${article.title}, ${article.dek}, ${tx.json(article.body)}, ${article.kind}, ${article.category}, ${article.region}, ${article.event_date}, now(), 'published', ${image?.url ?? null}, ${image?.sourceUrl ?? null}, ${image?.credit ?? null}, ${image?.license ?? null}, ${tx.array(article.tags)}, ${article.reading_minutes}, ${cycleId})
       ON CONFLICT (slug) DO NOTHING
       RETURNING id
     `;
@@ -103,14 +118,13 @@ async function saveArticle(sql, article, candidate, sources, image, cycleId) {
     }
     return rows[0];
   });
-  return { id: inserted.id, title: article.title, photo: true };
+  return { id: inserted.id, title: article.title, slug: slugify(article.title), photo: Boolean(image) };
 }
 
 export async function runEditorialCycle(sql, cycle) {
   const now = new Date(cycle.scheduledAt);
   const candidates = await withRetries(() => discoverCandidates(sql, now));
   const report = { candidates: candidates.length, published: [], failed: [], featuredCuriosities: [] };
-  const successes = { current: 0, curiosity: 0 };
   const topicCounts = { current: 0, curiosity: 0 };
 
   for (const candidate of candidates) {
@@ -118,42 +132,42 @@ export async function runEditorialCycle(sql, cycle) {
     if (topicCounts[candidate.kind] >= 3) continue;
     topicCounts[candidate.kind] += 1;
     try {
-      // Check that a suitable cover exists before spending tokens on research and writing.
-      let image;
-      try { image = await findCommercialPhoto(`${candidate.topic} ${candidate.category}`); }
-      catch (error) { throw new Error(`Cover image lookup failed: ${error.message}`); }
-      if (!image?.url) throw new Error("No commercially licensed cover image found");
-
+      // Cheap check first: skip stale news before paying for research.
+      if (candidate.kind === "current" && !isRecentEventDate(candidate.event_date, now)) {
+        throw new Error("Candidate has no recent event date; skipped before research");
+      }
       const researchPack = await withRetries(() => research(candidate, now));
       const article = await withRetries(() => writeAndReview(candidate, researchPack));
       if (article.kind !== candidate.kind) throw new Error("Writer changed the article type");
       if (candidate.kind === "current" && article.region !== candidate.region) throw new Error("Writer changed the news region");
-      const result = await withRetries(() => saveArticle(sql, article, candidate, researchPack.sources, image, cycle.cycleId));
+      const image = await pickCover(candidate);
+      const result = await withRetries(() => saveArticle(sql, article, researchPack.sources, image, cycle.cycleId));
       report.published.push({ ...result, kind: article.kind });
-      successes[article.kind] += 1;
     } catch (error) {
       const failure = { title: candidate.title, kind: candidate.kind, reason: String(error.message).slice(0, 500) };
-      console.warn("Editorial candidate failed", failure);
+      console.warn("Editorial candidate failed", JSON.stringify(failure));
       report.failed.push(failure);
+      if (/monthly API budget|insufficient_quota|spend_limit|credit_balance/i.test(failure.reason)) break;
     }
   }
 
-  // Choose up to three fresh curiosities first, then evergreen fallbacks.
   const publishedCuriosities = report.published.filter((item) => item.kind === "curiosity");
   const shortage = Math.max(0, 3 - publishedCuriosities.length);
   const reused = shortage ? await sql`
     SELECT id, title, slug FROM articles
     WHERE kind = 'curiosity' AND status = 'published' AND published_at <= now()
-      ORDER BY published_at DESC LIMIT ${shortage}
+    ORDER BY published_at DESC LIMIT ${shortage + 3}
   ` : [];
   const freshIds = new Set(publishedCuriosities.map((item) => item.id));
   const features = [...publishedCuriosities.map((item) => ({ id: item.id, title: item.title, slug: item.slug })), ...reused.filter((item) => !freshIds.has(item.id))];
   const seen = new Set();
-  const uniqueFeatures = features.filter((item) => !seen.has(item.id) && seen.add(item.id));
-  await sql`DELETE FROM homepage_featured_curiosities`;
-  for (const [index, item] of uniqueFeatures.slice(0, 3).entries()) {
-    await sql`INSERT INTO homepage_featured_curiosities (article_id, cycle_id, position) VALUES (${item.id}, ${cycle.cycleId}, ${index + 1}) ON CONFLICT (article_id) DO UPDATE SET cycle_id = EXCLUDED.cycle_id, position = EXCLUDED.position, featured_at = now()`;
+  const uniqueFeatures = features.filter((item) => !seen.has(item.id) && seen.add(item.id)).slice(0, 3);
+  if (uniqueFeatures.length) {
+    await sql`DELETE FROM homepage_featured_curiosities`;
+    for (const [index, item] of uniqueFeatures.entries()) {
+      await sql`INSERT INTO homepage_featured_curiosities (article_id, cycle_id, position) VALUES (${item.id}, ${cycle.cycleId}, ${index + 1}) ON CONFLICT (article_id) DO UPDATE SET cycle_id = EXCLUDED.cycle_id, position = EXCLUDED.position, featured_at = now()`;
+    }
   }
-  report.featuredCuriosities = uniqueFeatures.slice(0, 3);
+  report.featuredCuriosities = uniqueFeatures;
   return report;
 }
