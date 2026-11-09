@@ -43,9 +43,16 @@ export default async (request) => {
       RETURNING id, status
     `;
     if (!existing.length) {
-      const prior = await sql`SELECT id, status FROM editorial_cycles WHERE scheduled_for = ${scheduledAt} LIMIT 1`;
+      const prior = await sql`SELECT id, status, report FROM editorial_cycles WHERE scheduled_for = ${scheduledAt} LIMIT 1`;
       if (!prior.length || ["completed", "processing"].includes(prior[0].status)) {
-        console.info("Editorial cycle already processed or running", { scheduledAt: scheduledAt.toISOString() });
+        if (prior[0]?.status === "completed") {
+          console.info("Previous editorial cycle report", {
+            scheduledAt: scheduledAt.toISOString(),
+            report: prior[0].report,
+          });
+        } else {
+          console.info("Editorial cycle already processed or running", { scheduledAt: scheduledAt.toISOString() });
+        }
         await sql.end();
         return new Response("Cycle already processed or running", { status: 200 });
       }
@@ -70,6 +77,7 @@ export default async (request) => {
           candidates: report.candidates,
           published: report.published.length,
           failed: report.failed.length,
+          failures: report.failed,
         });
       } catch (error) {
         const details = { error: String(error.message).slice(0, 1000) };
