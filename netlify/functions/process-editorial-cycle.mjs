@@ -4,11 +4,34 @@ import { runEditorialCycle } from "../../src/server/pipeline.mjs";
 export default async (request) => {
   const expected = process.env.CRON_SECRET;
   const supplied = request.headers.get("x-cron-secret");
-  if (expected && supplied !== expected) return new Response("Unauthorized", { status: 401 });
+  console.info("Editorial processor invoked", {
+    cronSecretConfigured: Boolean(expected),
+    openAiKeyConfigured: Boolean(process.env.OPENAI_API_KEY),
+  });
+
+  if (!expected) {
+    console.error("Editorial processor stopped: CRON_SECRET is missing");
+    return new Response("CRON_SECRET missing", { status: 500 });
+  }
+  if (supplied !== expected) {
+    console.error("Editorial processor stopped: cron secret did not match");
+    return new Response("Unauthorized", { status: 401 });
+  }
+  if (!process.env.OPENAI_API_KEY) {
+    console.error("Editorial processor stopped: OPENAI_API_KEY is missing");
+    return new Response("OPENAI_API_KEY missing", { status: 500 });
+  }
+
   let cycleInput;
-  try { cycleInput = await request.json(); } catch { return new Response("Invalid cycle payload", { status: 400 }); }
+  try { cycleInput = await request.json(); } catch {
+    console.error("Editorial processor received an invalid JSON payload");
+    return new Response("Invalid cycle payload", { status: 400 });
+  }
   const scheduledAt = new Date(cycleInput.scheduledAt);
-  if (!Number.isFinite(scheduledAt.getTime())) return new Response("Invalid scheduledAt", { status: 400 });
+  if (!Number.isFinite(scheduledAt.getTime())) {
+    console.error("Editorial processor received an invalid scheduledAt value");
+    return new Response("Invalid scheduledAt", { status: 400 });
+  }
 
   const sql = openDatabase();
   let cycleId;
@@ -22,22 +45,32 @@ export default async (request) => {
     if (!existing.length) {
       const prior = await sql`SELECT id, status FROM editorial_cycles WHERE scheduled_for = ${scheduledAt} LIMIT 1`;
       if (!prior.length || ["completed", "processing"].includes(prior[0].status)) {
+        console.info("Editorial cycle already processed or running", { scheduledAt: scheduledAt.toISOString() });
         await sql.end();
         return new Response("Cycle already processed or running", { status: 200 });
       }
       existing = await sql`UPDATE editorial_cycles SET status = 'processing', started_at = now() WHERE id = ${prior[0].id} AND status IN ('failed', 'queued') RETURNING id, status`;
       if (!existing.length) {
+        console.info("Editorial cycle was already claimed", { scheduledAt: scheduledAt.toISOString() });
         await sql.end();
         return new Response("Cycle already claimed", { status: 200 });
       }
     }
     const cycle = existing[0];
     cycleId = cycle.id;
+    console.info("Editorial cycle started", { cycleId, scheduledAt: scheduledAt.toISOString() });
+
     const run = async () => {
       try {
         const report = await runEditorialCycle(sql, { cycleId: cycle.id, scheduledAt: scheduledAt.toISOString() });
         await sql`UPDATE editorial_cycles SET status = 'completed', finished_at = now(), report = ${sql.json(report)} WHERE id = ${cycle.id}`;
         await sql`INSERT INTO cycle_reports (cycle_id, stage, outcome, details) VALUES (${cycle.id}, 'cycle', 'completed', ${sql.json(report)})`;
+        console.info("Editorial cycle completed", {
+          cycleId: cycle.id,
+          candidates: report.candidates,
+          published: report.published.length,
+          failed: report.failed.length,
+        });
       } catch (error) {
         const details = { error: String(error.message).slice(0, 1000) };
         await sql`UPDATE editorial_cycles SET status = 'failed', finished_at = now(), report = ${sql.json(details)} WHERE id = ${cycle.id}`.catch(() => {});
