@@ -10,7 +10,6 @@
   "dependencies": {
     "@netlify/database": "^1.0.0",
     "@netlify/functions": "^3.0.0",
-    "@netlify/plugin-functions-install-core": "^4.0.0",
     "openai": "^5.0.0",
     "postgres": "^3.4.7"
   }
