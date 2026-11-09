@@ -15,7 +15,16 @@ export default async (request) => {
   if (process.env.EDITORIAL_AUTOMATION_ENABLED !== "true") return new Response("Editorial automation is paused", { status: 200 });
   const now = new Date();
   const event = await request.json().catch(() => ({}));
-  const scheduledAt = event.next_run ? new Date(event.next_run) : now;
+
+  // Netlify's scheduled event's next_run points to the following invocation,
+  // not the invocation that is running now. Derive this hourly slot by stepping
+  // back one hour; this also makes Run now test the current hourly slot.
+  let scheduledAt = new Date(now);
+  if (event.next_run) {
+    const nextRun = new Date(event.next_run);
+    if (!Number.isFinite(nextRun.getTime())) return new Response("Invalid scheduled run", { status: 400 });
+    scheduledAt = new Date(nextRun.getTime() - 60 * 60 * 1000);
+  }
   if (!Number.isFinite(scheduledAt.getTime())) return new Response("Invalid scheduled run", { status: 400 });
   const hour = madridHour(scheduledAt);
 
