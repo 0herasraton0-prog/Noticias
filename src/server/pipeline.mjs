@@ -68,13 +68,9 @@ async function writeAndReview(candidate, researchPack) {
   return article;
 }
 
-async function saveArticle(sql, article, candidate, sources, cycleId) {
+async function saveArticle(sql, article, candidate, sources, image, cycleId) {
   const duplicate = await sql`SELECT id FROM articles WHERE topic_key = ${article.topic_key} AND created_at > now() - interval '45 days' LIMIT 1`;
   if (duplicate.length) throw new Error("Duplicate topic in the recent archive");
-  let image = null;
-  try { image = await findCommercialPhoto(`${candidate.topic} ${candidate.category}`); }
-  catch (error) { throw new Error(`Cover image lookup failed: ${error.message}`); }
-  if (!image?.url) throw new Error("No commercially licensed cover image found; article was not published");
 
   const inserted = await sql.begin(async (tx) => {
     const rows = await tx`
@@ -104,16 +100,24 @@ export async function runEditorialCycle(sql, cycle) {
     if (topicCounts[candidate.kind] >= 3) continue;
     topicCounts[candidate.kind] += 1;
     try {
+      // Check that a suitable cover exists before spending tokens on research and writing.
+      let image;
+      try { image = await findCommercialPhoto(`${candidate.topic} ${candidate.category}`); }
+      catch (error) { throw new Error(`Cover image lookup failed: ${error.message}`); }
+      if (!image?.url) throw new Error("No commercially licensed cover image found");
+
       const researchPack = await withRetries(() => research(candidate, now));
       const article = await withRetries(() => writeAndReview(candidate, researchPack));
       if (article.kind !== candidate.kind) throw new Error("Writer changed the article type");
       if (candidate.kind === "current" && article.region !== candidate.region) throw new Error("Writer changed the news region");
       if (candidate.kind === "current" && (!candidate.event_date || new Date(candidate.event_date) < new Date(now.getTime() - 3 * 86400000))) throw new Error("Current news is missing a recent event date");
-      const result = await withRetries(() => saveArticle(sql, article, candidate, researchPack.sources, cycle.cycleId));
+      const result = await withRetries(() => saveArticle(sql, article, candidate, researchPack.sources, image, cycle.cycleId));
       report.published.push({ ...result, kind: article.kind });
       successes[article.kind] += 1;
     } catch (error) {
-      report.failed.push({ title: candidate.title, kind: candidate.kind, reason: String(error.message).slice(0, 500) });
+      const failure = { title: candidate.title, kind: candidate.kind, reason: String(error.message).slice(0, 500) };
+      console.warn("Editorial candidate failed", failure);
+      report.failed.push(failure);
     }
   }
 
