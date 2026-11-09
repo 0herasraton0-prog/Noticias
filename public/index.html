@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f3f5f8" />
+    <meta name="description" content="Actualidad y curiosidades explicadas de forma clara e interesante." />
+    <meta name="robots" content="index,follow,max-image-preview:large" />
+    <title>Actualidad y curiosidades</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="Inicio">
+        <span class="brand-mark">N</span><span>NOTICIAS<span class="brand-dot">.</span></span>
+      </a>
+      <nav aria-label="Navegación principal">
+        <a class="active" href="#inicio">Inicio</a>
+        <a href="#actualidad">Actualidad</a>
+        <a href="#categorias">Categorías</a>
+        <a href="#mas-leido">Lo más leído</a>
+      </nav>
+      <div class="top-actions">
+        <form class="search" role="search" onsubmit="return false">
+          <span aria-hidden="true">⌕</span>
+          <input id="search-input" type="search" placeholder="Buscar artículos" aria-label="Buscar artículos" />
+        </form>
+        <button class="theme-toggle" id="theme-toggle" aria-label="Cambiar modo claro u oscuro">◐</button>
+      </div>
+    </header>
+
+    <main id="inicio">
+      <section class="hero-strip">
+        <div><span class="eyebrow">EL MUNDO, EN CLARO</span><h1>Lo que pasa. Lo que sorprende.</h1></div>
+        <p>Actualidad para entender el día y curiosidades para seguir leyendo.</p>
+      </section>
+
+      <div class="main-grid">
+        <section class="latest" id="actualidad">
+          <div class="section-heading"><div><span class="live-dot"></span><h2>Última hora</h2></div><a href="#actualidad">Ver actualidad <span>→</span></a></div>
+          <div id="latest-list" class="latest-list">
+            <div class="empty-state"><span class="empty-icon">✦</span><strong>Próximamente, actualidad y curiosidades</strong><p>Esta portada está lista para recibir sus primeras publicaciones.</p></div>
+          </div>
+        </section>
+        <aside class="sidebar">
+          <section class="side-card" id="mas-leido">
+            <div class="section-heading compact"><h2>Lo más leído hoy</h2><span class="spark">↗</span></div>
+            <div class="empty-small">Las lecturas más populares del día aparecerán aquí.</div>
+          </section>
+          <section class="side-card region-card">
+            <span class="eyebrow">COBERTURA</span>
+            <div class="region-row"><span>ES</span><strong>España</strong><b>01</b></div>
+            <div class="region-row"><span>LA</span><strong>Latinoamérica</strong><b>02</b></div>
+            <div class="region-row"><span>↗</span><strong>Internacional</strong><b>03</b></div>
+          </section>
+          <div class="ad-slot"><span>PUBLICIDAD</span><div>Espacio reservado<br />para anuncios</div></div>
+        </aside>
+      </div>
+
+      <section class="curiosities" id="curiosidades">
+        <div class="section-heading"><div><span class="section-icon">✳</span><h2>Para seguir descubriendo</h2></div><a href="#categorias">Explorar categorías <span>→</span></a></div>
+        <div id="curiosity-list" class="curiosity-grid">
+          <div class="curiosity-empty">Las curiosidades destacadas aparecerán aquí.</div>
+        </div>
+      </section>
+
+      <section class="categories" id="categorias">
+        <div class="section-heading"><div><span class="eyebrow">EXPLORA</span><h2>Un mundo de temas</h2></div></div>
+        <div class="category-grid">
+          <a href="/categoria/Ciencia">Ciencia <span>↗</span></a><a href="/categoria/Naturaleza%20y%20animales">Naturaleza y animales <span>↗</span></a>
+          <a href="/categoria/Geografía%20y%20lugares">Geografía y lugares <span>↗</span></a><a href="/categoria/Historia%20y%20arqueología">Historia y arqueología <span>↗</span></a>
+          <a href="/categoria/Espacio%20y%20universo">Espacio y universo <span>↗</span></a><a href="/categoria/Tecnología%20e%20inventos">Tecnología e inventos <span>↗</span></a>
+          <a href="/categoria/Cultura%20y%20tradiciones">Cultura y tradiciones <span>↗</span></a><a href="/categoria/Cuerpo%20y%20mente">Cuerpo y mente <span>↗</span></a>
+          <a href="/categoria/Famosos%20y%20entretenimiento">Famosos y entretenimiento <span>↗</span></a><a href="/categoria/Datos%20sorprendentes%20y%20vida%20cotidiana">Datos sorprendentes y vida cotidiana <span>↗</span></a>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <a class="brand footer-brand" href="/"><span class="brand-mark">N</span><span>NOTICIAS<span class="brand-dot">.</span></span></a>
+      <span>Actualidad y curiosidades para lectores curiosos.</span>
+      <div><a href="/privacidad">Privacidad</a><a href="/cookies">Cookies</a><a href="/aviso-legal">Aviso legal</a><button id="cookie-settings">Preferencias de cookies</button></div>
+    </footer>
+    <section class="results-shell" hidden>
+      <h1 data-results-title></h1>
+      <div data-results class="latest-list"></div>
+    </section>
+    <section class="legal-shell" data-legal="privacidad" hidden><h1>Privacidad</h1><p>Antes de publicar, completa esta página con la identidad y los datos de contacto del responsable del sitio. Explica qué datos técnicos, medición y publicidad se utilizan, sus finalidades, conservación y cómo ejercer los derechos aplicables. No se almacenan cuentas de lectores.</p></section>
+    <section class="legal-shell" data-legal="cookies" hidden><h1>Cookies y preferencias</h1><p>Las cookies no esenciales y las tecnologías de publicidad o analítica deben activarse solo tras integrar una plataforma de consentimiento compatible y recibir el permiso correspondiente.</p><p>El botón «Preferencias de cookies» abrirá el panel cuando se conecte la plataforma de consentimiento.</p></section>
+    <section class="legal-shell" data-legal="aviso-legal" hidden><h1>Aviso legal</h1><p>Antes de publicar, completa esta página con el nombre del titular, dirección o medio de contacto, identificación fiscal y datos registrales que correspondan.</p></section>
+    <script src="/app.js" defer></script>
+  </body>
+</html>

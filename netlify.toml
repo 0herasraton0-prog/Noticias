@@ -1,0 +1,54 @@
+[build]
+  publish = "public"
+  functions = "netlify/functions"
+
+[functions."schedule-editorial-cycle"]
+  schedule = "0 * * * *"
+
+[[plugins]]
+  package = "@netlify/plugin-functions-install-core"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+
+[[headers]]
+  for = "/api/*"
+  [headers.values]
+    Cache-Control = "no-store"
+
+[[redirects]]
+  from = "/articulo/*"
+  to = "/.netlify/functions/article-page?slug=:splat"
+  status = 200
+
+[[redirects]]
+  from = "/api/articles"
+  to = "/.netlify/functions/list-articles"
+  status = 200
+
+[[redirects]]
+  from = "/api/search"
+  to = "/.netlify/functions/search-articles"
+  status = 200
+
+[[redirects]]
+  from = "/api/category/*"
+  to = "/.netlify/functions/category-articles?category=:splat"
+  status = 200
+
+[[redirects]]
+  from = "/api/engagement"
+  to = "/.netlify/functions/record-engagement"
+  status = 200
+
+[[redirects]]
+  from = "/api/popular"
+  to = "/.netlify/functions/popular-articles"
+  status = 200

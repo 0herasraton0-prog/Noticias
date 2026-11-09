@@ -1,0 +1,31 @@
+import { getConnectionString } from "@netlify/database";
+import postgres from "postgres";
+
+export default async () => {
+  const sql = postgres(getConnectionString(), { max: 1 });
+  try {
+    const articles = await sql`
+      SELECT id, slug, title, dek, kind, category, region, event_date,
+             published_at, cover_url, cover_credit, tags, reading_minutes
+      FROM articles
+      WHERE status = 'published' AND published_at <= now()
+      ORDER BY CASE WHEN kind = 'current' AND published_at > now() - interval '3 days' THEN 0 ELSE 1 END,
+               published_at DESC
+      LIMIT 60
+    `;
+    let featuredCuriosities = [];
+    try { featuredCuriosities = await sql`
+      SELECT a.id, a.slug, a.title, a.dek, a.kind, a.category, a.region, a.event_date,
+             a.published_at, a.cover_url, a.cover_credit, a.tags, a.reading_minutes
+      FROM homepage_featured_curiosities f JOIN articles a ON a.id = f.article_id
+      WHERE a.status = 'published' AND a.published_at <= now()
+      ORDER BY f.position ASC
+    `; } catch (error) { console.error("Could not load featured curiosities", error); }
+    return Response.json({ articles, featuredCuriosities });
+  } catch (error) {
+    console.error("Could not load articles", error);
+    return Response.json({ articles: [] }, { status: 200 });
+  } finally {
+    await sql.end();
+  }
+};
