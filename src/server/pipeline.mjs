@@ -10,6 +10,19 @@ const isSocial = (url) => [...SOCIAL_HOSTS].some((host) => domainOf(url) === hos
 const slugify = (value) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 80);
 const wordCount = (value) => String(value).replace(/<[^>]+>/g, " ").split(/\s+/).filter(Boolean).length;
 
+function isRecentEventDate(value, now) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  const eventDay = Date.UTC(year, month - 1, day);
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Madrid", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(now);
+  const part = (name) => Number(parts.find((item) => item.type === name)?.value);
+  const todayDay = Date.UTC(part("year"), part("month") - 1, part("day"));
+  const ageInDays = (todayDay - eventDay) / 86400000;
+  return Number.isInteger(ageInDays) && ageInDays >= 0 && ageInDays <= 3;
+}
+
 export async function withRetries(task, attempts = 3) {
   let lastError;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
@@ -45,6 +58,10 @@ async function research(candidate, now) {
   const domains = new Set(sources.map((source) => domainOf(source.url)));
   if (domains.size < minimum) throw new Error(`Insufficient independent source citations (${domains.size}/${minimum})`);
   if (data.discrepancy && domains.size < 3) throw new Error("Important source discrepancy was not resolved by a third source");
+  if (candidate.kind === "current" && !isRecentEventDate(data.event_date, now)) {
+    throw new Error("Research did not verify an event date within the last three days");
+  }
+  if (candidate.kind === "curiosity") data.event_date = null;
   return { dossier: data, sources };
 }
 
@@ -53,12 +70,13 @@ async function writeAndReview(candidate, researchPack) {
     name: "editorial_article", schema: ARTICLE_SCHEMA, instructions: WRITER_INSTRUCTIONS, webSearch: false,
     input: `Candidato:\n${JSON.stringify(candidate)}\nDossier investigado:\n${JSON.stringify(researchPack.dossier)}\nFuentes comprobadas:\n${JSON.stringify(researchPack.sources)}`,
   });
+  article.event_date = candidate.kind === "current" ? researchPack.dossier.event_date : null;
   if (article.body.length < 5 || article.body.some((paragraph) => wordCount(paragraph) < 20 || wordCount(paragraph) > 180)) {
     throw new Error("Article paragraph count or length is outside editorial limits");
   }
   if (wordCount(article.body.join(" ")) < 350) throw new Error("Article is too short to provide useful context");
   if (article.kind === "current" && !article.event_date) throw new Error("Current news is missing the event date");
-  if (article.kind === "curiosity" && article.event_date) throw new Error("Curiosity article must not show an event date");
+
   const { data: review } = await structuredResponse({
     name: "editorial_review", schema: REVIEW_SCHEMA, instructions: REVIEW_INSTRUCTIONS,
     input: `Candidato:\n${JSON.stringify(candidate)}\nDossier:\n${JSON.stringify(researchPack.dossier)}\nArtículo:\n${JSON.stringify(article)}`,
@@ -110,7 +128,6 @@ export async function runEditorialCycle(sql, cycle) {
       const article = await withRetries(() => writeAndReview(candidate, researchPack));
       if (article.kind !== candidate.kind) throw new Error("Writer changed the article type");
       if (candidate.kind === "current" && article.region !== candidate.region) throw new Error("Writer changed the news region");
-      if (candidate.kind === "current" && (!candidate.event_date || new Date(candidate.event_date) < new Date(now.getTime() - 3 * 86400000))) throw new Error("Current news is missing a recent event date");
       const result = await withRetries(() => saveArticle(sql, article, candidate, researchPack.sources, image, cycle.cycleId));
       report.published.push({ ...result, kind: article.kind });
       successes[article.kind] += 1;
