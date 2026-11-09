@@ -46,10 +46,16 @@ export default async (request) => {
       const prior = await sql`SELECT id, status, report FROM editorial_cycles WHERE scheduled_for = ${scheduledAt} LIMIT 1`;
       if (!prior.length || ["completed", "processing"].includes(prior[0].status)) {
         if (prior[0]?.status === "completed") {
-          console.info("Previous editorial cycle report", {
+          const report = prior[0].report || {};
+          console.info("Previous editorial cycle summary", JSON.stringify({
             scheduledAt: scheduledAt.toISOString(),
-            report: prior[0].report,
-          });
+            candidates: report.candidates ?? null,
+            published: report.published?.length ?? 0,
+            failed: report.failed?.length ?? 0,
+          }));
+          for (const failure of report.failed || []) {
+            console.info("Previous editorial candidate failure", JSON.stringify(failure));
+          }
         } else {
           console.info("Editorial cycle already processed or running", { scheduledAt: scheduledAt.toISOString() });
         }
