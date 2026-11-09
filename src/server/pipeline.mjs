@@ -73,12 +73,13 @@ async function saveArticle(sql, article, candidate, sources, cycleId) {
   if (duplicate.length) throw new Error("Duplicate topic in the recent archive");
   let image = null;
   try { image = await findCommercialPhoto(`${candidate.topic} ${candidate.category}`); }
-  catch (error) { console.error("Image lookup failed; publishing without a photo is allowed", error.message); }
+  catch (error) { throw new Error(`Cover image lookup failed: ${error.message}`); }
+  if (!image?.url) throw new Error("No commercially licensed cover image found; article was not published");
 
   const inserted = await sql.begin(async (tx) => {
     const rows = await tx`
       INSERT INTO articles (slug, topic_key, title, dek, body, kind, category, region, event_date, published_at, status, cover_url, cover_source_url, cover_credit, cover_license, tags, reading_minutes, cycle_id)
-      VALUES (${slugify(article.title)}, ${article.topic_key}, ${article.title}, ${article.dek}, ${tx.json(article.body)}, ${article.kind}, ${article.category}, ${article.region}, ${article.event_date}, now(), 'published', ${image?.url ?? null}, ${image?.sourceUrl ?? null}, ${image?.credit ?? null}, ${image?.license ?? null}, ${tx.array(article.tags)}, ${article.reading_minutes}, ${cycleId})
+      VALUES (${slugify(article.title)}, ${article.topic_key}, ${article.title}, ${article.dek}, ${tx.json(article.body)}, ${article.kind}, ${article.category}, ${article.region}, ${article.event_date}, now(), 'published', ${image.url}, ${image.sourceUrl}, ${image.credit}, ${image.license}, ${tx.array(article.tags)}, ${article.reading_minutes}, ${cycleId})
       ON CONFLICT (slug) DO NOTHING
       RETURNING id
     `;
@@ -88,7 +89,7 @@ async function saveArticle(sql, article, candidate, sources, cycleId) {
     }
     return rows[0];
   });
-  return { id: inserted.id, title: article.title, photo: Boolean(image) };
+  return { id: inserted.id, title: article.title, photo: true };
 }
 
 export async function runEditorialCycle(sql, cycle) {
