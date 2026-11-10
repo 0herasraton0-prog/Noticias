@@ -1,5 +1,6 @@
 import { getConnectionString } from "@netlify/database";
 import postgres from "postgres";
+import { EDITORIAL_CATEGORIES } from "../../src/server/categories.mjs";
 
 const CATEGORIES = new Set([
   "Ciencia", "Naturaleza y animales", "Geografía y lugares", "Historia y arqueología", "Espacio y universo",
@@ -8,7 +9,7 @@ const CATEGORIES = new Set([
 
 export default async (request) => {
   const category = new URL(request.url).searchParams.get("category") || "";
-  if (!CATEGORIES.has(category)) return Response.json({ articles: [] }, { status: 404 });
+  if (!EDITORIAL_CATEGORIES.includes(category)) return Response.json({ articles: [] }, { status: 404 });
   const sql = postgres(getConnectionString(), { max: 1 });
   try {
     const articles = await sql`
@@ -23,4 +24,3 @@ export default async (request) => {
   } finally { await sql.end(); }
 };
 
-export const config = { path: "/api/category/*" };
