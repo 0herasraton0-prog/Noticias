@@ -155,7 +155,7 @@ async function saveArticle(sql, article, sources, image, cycleId) {
   const inserted = await sql.begin(async (tx) => {
     const rows = await tx`
       INSERT INTO articles (slug, topic_key, title, dek, body, kind, category, region, event_date, published_at, status, cover_url, cover_source_url, cover_credit, cover_license, tags, reading_minutes, cycle_id)
-      VALUES (${slugify(article.title)}, ${article.topic_key}, ${article.title}, ${article.dek}, ${tx.json(article.body)}, ${article.kind}, ${article.category}, ${article.region}, ${article.event_date}, now(), 'published', ${image.url}, ${image.sourceUrl}, ${image.credit}, ${image.license}, ${tx.array(article.tags)}, ${article.reading_minutes}, ${cycleId})
+      VALUES (${slugify(article.title)}, ${article.topic_key}, ${article.title}, ${article.dek}, ${tx.json(article.body)}, ${article.kind}, ${article.category}, ${article.region}, ${article.event_date}, now(), 'published', ${image?.url ?? null}, ${image?.sourceUrl ?? null}, ${image?.credit ?? null}, ${image?.license ?? null}, ${tx.array(article.tags)}, ${article.reading_minutes}, ${cycleId})
       ON CONFLICT (slug) DO NOTHING
       RETURNING id
     `;
@@ -165,7 +165,7 @@ async function saveArticle(sql, article, sources, image, cycleId) {
     }
     return rows[0];
   });
-  return { id: inserted.id, title: article.title, slug: slugify(article.title), photo: true };
+  return { id: inserted.id, title: article.title, slug: slugify(article.title), photo: Boolean(image?.url) };
 }
 
 export async function runEditorialCycle(sql, cycle) {
@@ -186,12 +186,12 @@ export async function runEditorialCycle(sql, cycle) {
     report.attempted[candidate.kind] += 1;
 
     try {
-      // Reject stale news and find a commercially reusable, relevant cover before making more model calls.
+      // Reject stale news and search a relevant, commercially reusable cover before research.
       if (candidate.kind === "current" && !isRecentEventDate(candidate.event_date, now)) {
         throw new Error("Candidate has no recent event date; skipped before research");
       }
       const image = await pickCover(candidate);
-      if (!image?.url) throw new Error("No relevant commercially reusable cover image found after topic, title, and category searches; candidate skipped");
+      if (!image?.url) console.warn("No relevant free cover photo found; publishing with the neutral category placeholder", JSON.stringify({ title: candidate.title, category: candidate.category }));
 
       const researchPack = await research(candidate, now);
       const article = await writeAndReview(candidate, researchPack);
