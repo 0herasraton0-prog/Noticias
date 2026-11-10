@@ -64,7 +64,7 @@ function relevance(queryTerms, page, metadata, minMatches = null) {
     metadata.Subject?.value,
   ].join(" ")));
   const matches = queryTerms.filter((term) => content.has(term)).length;
-  const minimum = minMatches ?? (queryTerms.length <= 2 ? 1 : Math.min(3, Math.max(1, Math.ceil(queryTerms.length * 0.25)));
+  const minimum = minMatches ?? (queryTerms.length <= 2 ? 1 : Math.min(3, Math.max(1, Math.ceil(queryTerms.length * 0.25))));
   return matches >= minimum ? matches / queryTerms.length : 0;
 }
 
