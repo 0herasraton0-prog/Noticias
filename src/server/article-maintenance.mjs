@@ -73,7 +73,7 @@ export async function repairLegacyArchive(sql) {
         OR (cover_url IS NULL AND cover_credit IS NULL)
       )
     ORDER BY published_at DESC
-    LIMIT 40
+    LIMIT 6
   `;
   return repairLegacyArticles(sql, legacy);
 }
