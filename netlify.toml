@@ -3,7 +3,7 @@
   functions = "netlify/functions"
 
 [functions."schedule-editorial-cycle"]
-  schedule = "0 * * * *"
+  schedule = "0 3,4,9,10,15,16,21,22 * * *"
 
 [build.environment]
   NODE_VERSION = "22"
