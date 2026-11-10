@@ -9,7 +9,7 @@ export default async (request) => {
   if (!EDITORIAL_CATEGORIES.includes(category)) return Response.json({ articles: [] }, { status: 404 });
   const sql = postgres(getConnectionString(), { max: 1 });
   try {
-    await repairLegacyArchive(sql);
+    try { await repairLegacyArchive(sql); } catch (error) { console.warn("Legacy archive repair skipped; serving category results", String(error.message).slice(0, 180)); }
     const articles = await sql`
       SELECT id, slug, title, dek, kind, category, region, event_date, published_at, cover_url, cover_source_url, cover_credit, cover_license, tags, reading_minutes
       FROM articles WHERE category = ${category} AND status = 'published' AND published_at <= now()
