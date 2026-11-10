@@ -56,10 +56,11 @@ async function loadFeed() {
   }
 }
 
-loadFeed();
+const isHomePage = window.location.pathname === "/" || window.location.pathname === "/index.html";
+if (isHomePage) loadFeed();
 
 const popularList = document.querySelector("#mas-leido .empty-small");
-if (popularList) fetch("/api/popular").then((response) => response.json()).then(({ articles = [] }) => {
+if (isHomePage && popularList) fetch("/api/popular").then((response) => response.json()).then(({ articles = [] }) => {
   if (articles.length) popularList.innerHTML = articles.slice(0, 5).map((article, index) => `<div class="popular-item"><span>${String(index + 1).padStart(2, "0")}</span><a href="/articulo/${encodeURIComponent(article.slug)}">${escapeHtml(article.title)}</a></div>`).join("");
 }).catch(() => {});
 
