@@ -34,7 +34,7 @@ export async function withRetries(task, attempts = 3) {
       lastError = error;
       const status = error?.status ?? error?.statusCode;
       const code = error?.code ?? error?.error?.code;
-      if (status === 401 || status === 403 || (status >= 400 && status < 500 && ![408, 409, 429].includes(status)) || code === "insufficient_quota" || code === "project_spend_limit_exceeded" || code === "credit_balance_exhausted" || /duplicate topic|duplicate article slug|insufficient independent source|discrepancy was not resolved|review blocked article|did not verify an event date|monthly API budget/i.test(error.message)) throw error;
+      if (status === 401 || status === 403 || (status >= 400 && status < 500 && ![408, 409, 429].includes(status)) || code === "usage_accounting_failed" || code === "insufficient_quota" || code === "project_spend_limit_exceeded" || code === "credit_balance_exhausted" || /duplicate topic|duplicate article slug|insufficient independent source|discrepancy was not resolved|review blocked article|did not verify an event date|monthly API budget/i.test(error.message)) throw error;
       if (attempt < attempts) await new Promise((resolve) => setTimeout(resolve, attempt * 900));
     }
   }
