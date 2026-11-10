@@ -7,7 +7,7 @@ export async function repairLegacyArticle(sql, article) {
   if (!article?.id) return article;
   const category = normalizeEditorialCategory(article.category, article);
   const categoryIsValid = EDITORIAL_CATEGORIES.includes(article.category);
-  const needsImageRepair = badCredit(article.cover_credit) || !article.cover_url;
+  const needsImageRepair = badCredit(article.cover_credit) || (!article.cover_url && !article.cover_credit);
   if (categoryIsValid && !needsImageRepair) return article;
 
   let image = null;
@@ -35,7 +35,7 @@ export async function repairLegacyArticle(sql, article) {
     ...(needsImageRepair ? {
       cover_url: image?.url ?? null,
       cover_source_url: image?.sourceUrl ?? null,
-      cover_credit: image?.credit ?? null,
+      cover_credit: image?.credit ?? "Sin fotografía libre localizada",
       cover_license: image?.license ?? null,
     } : {}),
   };
@@ -60,4 +60,20 @@ export async function repairLegacyArticle(sql, article) {
 
 export async function repairLegacyArticles(sql, articles) {
   return Promise.all((articles || []).map((article) => repairLegacyArticle(sql, article)));
+}
+
+export async function repairLegacyArchive(sql) {
+  const legacy = await sql`
+    SELECT id, title, kind, category, cover_url, cover_source_url, cover_credit, cover_license, tags
+    FROM articles
+    WHERE status = 'published' AND published_at <= now()
+      AND (
+        NOT (category = ANY(${sql.array(EDITORIAL_CATEGORIES)}))
+        OR lower(coalesce(cover_credit, '')) IN ('true', 'false')
+        OR (cover_url IS NULL AND cover_credit IS NULL)
+      )
+    ORDER BY published_at DESC
+    LIMIT 40
+  `;
+  return repairLegacyArticles(sql, legacy);
 }
