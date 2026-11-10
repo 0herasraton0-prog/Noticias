@@ -7,7 +7,13 @@ document.querySelector("[data-share]")?.addEventListener("click", async () => {
   }
 });
 document.querySelector("#cookie-settings")?.addEventListener("click", () => {
-  window.dispatchEvent(new CustomEvent("open-cookie-preferences"));
+  const googlefc = window.googlefc;
+  if (typeof googlefc?.showRevocationMessage === "function") {
+    googlefc.callbackQueue = googlefc.callbackQueue || [];
+    googlefc.callbackQueue.push(googlefc.showRevocationMessage);
+  } else {
+    window.location.href = "/cookies";
+  }
 });
 
 const slug = decodeURIComponent(window.location.pathname.split("/").filter(Boolean).pop() || "");
