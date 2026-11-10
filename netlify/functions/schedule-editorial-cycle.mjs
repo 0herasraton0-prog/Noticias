@@ -19,9 +19,10 @@ export default async (request) => {
   const now = new Date();
   const event = await request.json().catch(() => ({}));
 
-  // Netlify's scheduled event's next_run points to the following invocation,
-  // not the invocation that is running now. Derive this hourly slot by stepping
-  // back one hour; this also makes Run now test the current hourly slot.
+  // Netlify's next_run is the next scheduled invocation. The UTC schedule
+  // includes both seasonal offsets for Europe/Madrid; infer the invocation
+  // that just ran from the preceding slot.
+  const scheduledUtcHours = [3, 4, 9, 10, 15, 16, 21, 22];
   let scheduledAt = new Date(now);
   if (event.next_run) {
     const nextRun = new Date(event.next_run);
@@ -29,7 +30,11 @@ export default async (request) => {
       console.error("Editorial scheduler received an invalid next_run value");
       return new Response("Invalid scheduled run", { status: 400 });
     }
-    scheduledAt = new Date(nextRun.getTime() - 60 * 60 * 1000);
+    const previousHours = scheduledUtcHours.filter((hour) => hour < nextRun.getUTCHours());
+    const previousHour = previousHours.at(-1) ?? scheduledUtcHours.at(-1);
+    scheduledAt = new Date(nextRun);
+    scheduledAt.setUTCHours(previousHour, 0, 0, 0);
+    if (!previousHours.length) scheduledAt.setUTCDate(scheduledAt.getUTCDate() - 1);
   }
 
   const hour = madridHour(scheduledAt);
