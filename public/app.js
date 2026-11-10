@@ -60,6 +60,16 @@ const legalPage = window.location.pathname.replace(/^\//, "").replace(/\/$/, "")
 if (["privacidad", "cookies", "aviso-legal"].includes(legalPage)) {
   document.querySelector("main")?.setAttribute("hidden", "");
   document.querySelector(`[data-legal="${legalPage}"]`)?.removeAttribute("hidden");
+  const legalTitles = {
+    privacidad: "Política de privacidad",
+    cookies: "Política de cookies",
+    "aviso-legal": "Aviso legal",
+  };
+  document.title = `${legalTitles[legalPage]} | Curio y Noticias 24h`;
+  const description = document.querySelector('meta[name="description"]');
+  if (description && legalPage === "privacidad") {
+    description.content = "Información sobre los datos tratados por Curio y Noticias 24h, las métricas de lectura, los proveedores y los derechos de los lectores.";
+  }
 }
 if (new URLSearchParams(window.location.search).has("q") || window.location.pathname.startsWith("/categoria/")) {
   document.querySelector("main")?.setAttribute("hidden", "");
