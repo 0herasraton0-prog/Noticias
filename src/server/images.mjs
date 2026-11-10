@@ -54,7 +54,7 @@ function terms(value) {
     .filter((word) => word.length >= 3 && !STOP_WORDS.has(word));
 }
 
-function relevance(queryTerms, page, metadata) {
+function relevance(queryTerms, page, metadata, minMatches = null) {
   if (!queryTerms.length) return 0;
   const content = new Set(terms([
     page.title,
@@ -64,7 +64,7 @@ function relevance(queryTerms, page, metadata) {
     metadata.Subject?.value,
   ].join(" ")));
   const matches = queryTerms.filter((term) => content.has(term)).length;
-  const minimum = queryTerms.length <= 2 ? 1 : Math.min(3, Math.max(1, Math.ceil(queryTerms.length * 0.25)));
+  const minimum = minMatches ?? (queryTerms.length <= 2 ? 1 : Math.min(3, Math.max(1, Math.ceil(queryTerms.length * 0.25)));
   return matches >= minimum ? matches / queryTerms.length : 0;
 }
 
@@ -75,7 +75,7 @@ function isPhotoFile(page, info) {
   return true;
 }
 
-export async function findCommercialPhoto(query) {
+export async function findCommercialPhoto(query, options = {}) {
   const queryTerms = [...new Set(terms(query))];
   if (!queryTerms.length) return null;
 
@@ -104,7 +104,7 @@ export async function findCommercialPhoto(query) {
     const metadata = info?.extmetadata ?? {};
     const license = commercialLicense(metadata.LicenseShortName?.value ?? metadata.License?.value ?? "");
     if (!isPhotoFile(page, info) || !license) continue;
-    const score = relevance(queryTerms, page, metadata);
+    const score = relevance(queryTerms, page, metadata, options.minMatches ?? null);
     if (score <= bestScore) continue;
 
     const artist = cleanHtml(metadata.Artist?.value ?? "Wikimedia Commons contributor");
