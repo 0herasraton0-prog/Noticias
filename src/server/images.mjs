@@ -1,11 +1,32 @@
-function isCommercialLicense(value = "") {
-  const license = value.trim().toLowerCase().replace(/\s+/g, " ");
-  if (/\b(nc|non.?commercial)\b/.test(license)) return false;
-  return /^(cc0|public domain|public-domain|cc by(?:-sa|-nd)?(?:\s|$)|cc by-sa-nd(?:\s|$))/i.test(license);
-}
+const COMMERCIAL_LICENSES = new Map([
+  ["cc0", "CC0"],
+  ["public domain", "Public domain"],
+  ["pd", "Public domain"],
+  ["cc by 4.0", "CC BY 4.0"],
+  ["cc by 3.0", "CC BY 3.0"],
+  ["cc by 2.0", "CC BY 2.0"],
+  ["cc by 1.0", "CC BY 1.0"],
+  ["cc by-sa 4.0", "CC BY-SA 4.0"],
+  ["cc by-sa 3.0", "CC BY-SA 3.0"],
+  ["cc by-sa 2.0", "CC BY-SA 2.0"],
+  ["cc by-sa 1.0", "CC BY-SA 1.0"],
+  ["cc by 4.0 international", "CC BY 4.0"],
+  ["cc by-sa 4.0 international", "CC BY-SA 4.0"],
+]);
 
 function cleanHtml(value = "") {
   return value.replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
+}
+
+function commercialLicense(value = "") {
+  const normalized = cleanHtml(value).toLowerCase().replace(/\s+/g, " ").trim();
+  if (/\b(nc|non.?commercial)\b/.test(normalized)) return null;
+  for (const [label, display] of COMMERCIAL_LICENSES) {
+    if (normalized === label || normalized.startsWith(label + " ")) return display;
+  }
+  if (/^cc by-sa-nd(?:\s|$)/i.test(normalized)) return "CC BY-SA-ND";
+  if (/^cc by-nd(?:\s|$)/i.test(normalized)) return "CC BY-ND";
+  return null;
 }
 
 export async function findCommercialPhoto(query) {
@@ -13,9 +34,9 @@ export async function findCommercialPhoto(query) {
   url.search = new URLSearchParams({
     action: "query",
     generator: "search",
-    gsrsearch: `${query} filetype:bitmap` ,
+    gsrsearch: query,
     gsrnamespace: "6",
-    gsrlimit: "6",
+    gsrlimit: "12",
     prop: "imageinfo",
     iiprop: "url|extmetadata",
     iiurlwidth: "1000",
@@ -29,17 +50,12 @@ export async function findCommercialPhoto(query) {
   for (const page of pages) {
     const info = page.imageinfo?.[0];
     const meta = info?.extmetadata ?? {};
-    const license = cleanHtml(meta.LicenseShortName?.value ?? "");
-    if (!info?.thumburl || !isCommercialLicense(license)) continue;
+    const license = commercialLicense(meta.LicenseShortName?.value ?? meta.License?.value ?? "");
+    if (!info?.thumburl || !license) continue;
     const artist = cleanHtml(meta.Artist?.value ?? "Wikimedia Commons contributor");
     const attribution = cleanHtml(meta.AttributionRequired?.value ?? "");
     const credit = [artist, page.title, license, info.descriptionurl].filter(Boolean).join(" — ");
-    return {
-      url: info.thumburl,
-      sourceUrl: info.descriptionurl,
-      license,
-      credit: attribution || credit,
-    };
+    return { url: info.thumburl, sourceUrl: info.descriptionurl, license, credit: attribution || credit };
   }
   return null;
 }
