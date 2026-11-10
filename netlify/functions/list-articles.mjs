@@ -27,7 +27,7 @@ export default async () => {
       category: normalizeEditorialCategory(article.category, article),
       ...(/^(true|false)$/i.test(String(article.cover_credit || "").trim()) ? { cover_url: null } : {}),
     });
-    return Response.json({ articles: articles.map(normalize), featuredCuriosities: featuredCuriosities.map(normalize) });
+    return Response.json({ articles: articles.map(normalize), featuredCuriosities: featuredCuriosities.map(normalize) }, { headers: { "Netlify-CDN-Cache-Control": "public, max-age=60, stale-while-revalidate=120, durable" } });
   } catch (error) {
     console.error("Could not load articles", error);
     return Response.json({ articles: [] }, { status: 200 });
