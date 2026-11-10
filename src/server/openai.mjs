@@ -24,7 +24,14 @@ export async function structuredResponse({ name, schema, instructions, input, we
     text: { format: { type: "json_schema", name, strict: true, schema } },
     store: false,
   });
-  await accountCost(response);
+  try {
+    await accountCost(response);
+  } catch (error) {
+    console.error("OpenAI call succeeded but usage accounting failed; stopping to prevent a paid retry", String(error.message).slice(0, 300));
+    const accountingError = new Error("Usage accounting failed after an OpenAI call; cycle stopped to prevent duplicate API spend");
+    accountingError.code = "usage_accounting_failed";
+    throw accountingError;
+  }
   const text = response.output_text;
   if (!text) throw new Error(`Empty response for ${name}`);
   return { data: JSON.parse(text), response };
