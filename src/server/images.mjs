@@ -36,7 +36,7 @@ export async function findCommercialPhoto(query) {
     generator: "search",
     gsrsearch: query,
     gsrnamespace: "6",
-    gsrlimit: "12",
+    gsrlimit: "30",
     prop: "imageinfo",
     iiprop: "url|extmetadata",
     iiurlwidth: "1000",
