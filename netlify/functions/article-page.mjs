@@ -14,7 +14,7 @@ function card(item) {
 
 export default async (request) => {
   const requestUrl = new URL(request.url);
-  const pathSlug = requestUrl.pathname.match(/^\\/articulo\\/([^/]+)\\/?$/i)?.[1];
+  const pathSlug = requestUrl.pathname.match(/^\/articulo\/([^/]+)\/?$/i)?.[1];
   const rawSlug = requestUrl.searchParams.get("slug") || pathSlug || "";
   let slug = rawSlug;
   if (!requestUrl.searchParams.has("slug") && pathSlug) {
