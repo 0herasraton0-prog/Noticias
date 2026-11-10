@@ -61,7 +61,7 @@ export async function discoverCandidates(sql, now) {
     if (!["current", "curiosity"].includes(candidate.kind) || counts[candidate.kind] >= MAX_CANDIDATES_PER_KIND) return false;
     counts[candidate.kind] += 1;
     return true;
-  });
+  }).slice(0, MAX_CANDIDATES_PER_KIND * 2);
 }
 
 async function research(candidate, now) {
