@@ -49,3 +49,8 @@
   from = "/api/popular"
   to = "/.netlify/functions/popular-articles"
   status = 200
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
