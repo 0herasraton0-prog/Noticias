@@ -22,7 +22,11 @@ export default async () => {
       WHERE a.status = 'published' AND a.published_at <= now()
       ORDER BY f.position ASC
     `; } catch (error) { console.error("Could not load featured curiosities", error); }
-    const normalize = (article) => ({\n      ...article,\n      category: normalizeEditorialCategory(article.category, article),\n      ...(/^(true|false)$/i.test(String(article.cover_credit || "").trim()) ? { cover_url: null } : {}),\n    });\n    return Response.json({ articles: articles.map(normalize), featuredCuriosities: featuredCuriosities.map(normalize) });
+    const normalize = (article) => ({
+      ...article,
+      category: normalizeEditorialCategory(article.category, article),
+      ...(/^(true|false)$/i.test(String(article.cover_credit || "").trim()) ? { cover_url: null } : {}),
+    });
   } catch (error) {
     console.error("Could not load articles", error);
     return Response.json({ articles: [] }, { status: 200 });
