@@ -29,4 +29,3 @@ export default async (request) => {
   } finally { await sql.end(); }
 };
 
-export const config = { path: "/api/engagement" };
