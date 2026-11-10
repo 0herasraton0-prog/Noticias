@@ -29,7 +29,7 @@ export default async (request) => {
       console.error("Editorial scheduler received an invalid next_run value");
       return new Response("Invalid scheduled run", { status: 400 });
     }
-    scheduledAt = nextRun;
+    scheduledAt = new Date(nextRun.getTime() - 60 * 60 * 1000);
   }
 
   const hour = madridHour(scheduledAt);
