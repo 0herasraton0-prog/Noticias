@@ -18,17 +18,13 @@ document.querySelector("#cookie-settings")?.addEventListener("click", () => {
 
 const slug = decodeURIComponent(window.location.pathname.split("/").filter(Boolean).pop() || "");
 const startedAt = Date.now();
-if (slug) {
-  const viewPayload = JSON.stringify({ slug, view: true });
-  if (navigator.sendBeacon) navigator.sendBeacon("/api/engagement", new Blob([viewPayload], { type: "application/json" }));
-  else fetch("/api/engagement", { method: "POST", headers: { "content-type": "application/json" }, body: viewPayload, keepalive: true }).catch(() => {});
-}
-function recordEngagement(nextArticleClick = false) {
+let nextArticleClick = false;
+function recordEngagement() {
   if (!slug) return;
   const engagedSeconds = Math.floor(Math.min(1800, Math.max(0, Date.now() - startedAt) / 1000));
-  const payload = JSON.stringify({ slug, engagedSeconds, nextArticleClick });
+  const payload = JSON.stringify({ slug, engagedSeconds, nextArticleClick, view: true });
   if (navigator.sendBeacon) navigator.sendBeacon("/api/engagement", new Blob([payload], { type: "application/json" }));
   else fetch("/api/engagement", { method: "POST", headers: { "content-type": "application/json" }, body: payload, keepalive: true }).catch(() => {});
 }
-document.querySelectorAll('a[href^="/articulo/"]').forEach((link) => link.addEventListener("click", () => recordEngagement(true)));
-window.addEventListener("pagehide", () => recordEngagement(false), { once: true });
+document.querySelectorAll('a[href^="/articulo/"]').forEach((link) => link.addEventListener("click", () => { nextArticleClick = true; }));
+window.addEventListener("pagehide", recordEngagement, { once: true });
