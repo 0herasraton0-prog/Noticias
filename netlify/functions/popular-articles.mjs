@@ -18,4 +18,3 @@ export default async () => {
   } finally { await sql.end(); }
 };
 
-export const config = { path: "/api/popular" };
