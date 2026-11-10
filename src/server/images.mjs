@@ -33,6 +33,7 @@ function commercialLicense(value = "") {
   }
   if (/^cc by-sa-nd(?:\s|$)/i.test(normalized)) return "CC BY-SA-ND";
   if (/^cc by-nd(?:\s|$)/i.test(normalized)) return "CC BY-ND";
+  if (/^gfdl(?:\s|$)/i.test(normalized)) return "GFDL";
   return null;
 }
 
