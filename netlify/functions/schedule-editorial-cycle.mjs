@@ -11,8 +11,11 @@ function madridHour(date) {
 }
 
 export default async (request) => {
-  if (process.env.EDITORIAL_AUTOMATION_ENABLED !== "true") {
-    console.info("Editorial scheduler stopped: EDITORIAL_AUTOMATION_ENABLED is not true");
+  const automationSetting = String(process.env.EDITORIAL_AUTOMATION_ENABLED ?? "").trim().toLowerCase();
+  if (automationSetting !== "true") {
+    console.info("Editorial scheduler stopped: EDITORIAL_AUTOMATION_ENABLED is not true", {
+      setting: automationSetting || "unset",
+    });
     return new Response("Editorial automation is paused", { status: 200 });
   }
 
