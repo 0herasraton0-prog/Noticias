@@ -1,11 +1,10 @@
 import { getConnectionString } from "@netlify/database";
 import postgres from "postgres";
-import { repairLegacyArchive } from "../../src/server/article-maintenance.mjs";
+import { normalizeEditorialCategory } from "../../src/server/categories.mjs";
 
 export default async () => {
   const sql = postgres(getConnectionString(), { max: 1 });
   try {
-    await repairLegacyArchive(sql);
     const articles = await sql`
       SELECT id, slug, title, dek, kind, category, region, event_date,
              published_at, cover_url, cover_source_url, cover_credit, cover_license, tags, reading_minutes
@@ -23,7 +22,7 @@ export default async () => {
       WHERE a.status = 'published' AND a.published_at <= now()
       ORDER BY f.position ASC
     `; } catch (error) { console.error("Could not load featured curiosities", error); }
-    return Response.json({ articles, featuredCuriosities });
+    const normalize = (article) => ({\n      ...article,\n      category: normalizeEditorialCategory(article.category, article),\n      ...(/^(true|false)$/i.test(String(article.cover_credit || "").trim()) ? { cover_url: null } : {}),\n    });\n    return Response.json({ articles: articles.map(normalize), featuredCuriosities: featuredCuriosities.map(normalize) });
   } catch (error) {
     console.error("Could not load articles", error);
     return Response.json({ articles: [] }, { status: 200 });
