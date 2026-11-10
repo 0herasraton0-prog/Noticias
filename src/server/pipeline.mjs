@@ -92,7 +92,8 @@ async function writeAndReview(candidate, researchPack) {
       input: `Candidato:\n${JSON.stringify(candidate)}\nDossier investigado:\n${JSON.stringify(researchPack.dossier)}\nFuentes comprobadas:\n${JSON.stringify(researchPack.sources)}\n${revision ? `Corrige este borrador siguiendo estos fallos: ${feedback.join("; ")}\nBorrador anterior: ${JSON.stringify(previousDraft)}` : "Escribe el artículo desde cero."}`,
     }));
 
-    article.event_date = candidate.kind === "current" ? researchPack.dossier.event_date : null;\n    article.category = candidate.category;
+    article.event_date = candidate.kind === "current" ? researchPack.dossier.event_date : null;
+    article.category = candidate.category;
     const issues = [];
     if (!Array.isArray(article.body) || article.body.length < 5 || article.body.some((paragraph) => wordCount(paragraph) < 20 || wordCount(paragraph) > 180)) {
       issues.push("El artículo debe tener al menos cinco párrafos de 20 a 180 palabras.");
