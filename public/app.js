@@ -27,7 +27,7 @@ function card(article, index, extraClass = "") {
     ? `<img src="${escapeHtml(article.cover_url)}" alt="" loading="lazy">`
     : `<div class="card-placeholder"><span>${escapeHtml(label)}</span></div>`;
   return `<article class="story-card ${extraClass}">
-    <a href="/articulo/${encodeURIComponent(article.slug)}" class="story-image">${visual}</a>
+    <a href="/articulo/${encodeURIComponent(article.slug)}" class="story-image" aria-label="${escapeHtml(article.title)}">${visual}<span class="story-image-title">${escapeHtml(article.title)}</span></a>
     <div class="story-copy"><span class="story-label">${escapeHtml(label)}</span>
       <h3><a href="/articulo/${encodeURIComponent(article.slug)}">${escapeHtml(article.title)}</a></h3>
       <p>${escapeHtml(article.dek)}</p><div class="story-meta">${escapeHtml(article.published_at ? new Date(article.published_at).toLocaleDateString("es-ES", { day: "numeric", month: "short" }) : "")}${article.reading_minutes ? ` · ${article.reading_minutes} min de lectura` : ""}</div>
