@@ -41,7 +41,7 @@ async function loadFeed() {
     if (!response.ok) return;
     const { articles = [], featuredCuriosities = [] } = await response.json();
     const current = articles.filter((article) => article.kind === "current" && Date.now() - Date.parse(article.published_at) <= 3 * 86400000).slice(0, 3);
-    const curiosities = featuredCuriosities.length ? featuredCuriosities : articles.filter((article) => article.kind === "curiosity").slice(0, 3);
+    const curiosities = [...featuredCuriosities, ...articles.filter((article) => article.kind === "curiosity" && !featuredCuriosities.some((featured) => featured.id === article.id))].slice(0, 3);
     if (current.length) document.querySelector("#latest-list").innerHTML = current.map((article, index) => card(article, index, "current-card")).join("");
     if (curiosities.length) document.querySelector("#curiosity-list").innerHTML = curiosities.map((article, index) => card(article, index, "curiosity-card")).join("");
   } catch {
