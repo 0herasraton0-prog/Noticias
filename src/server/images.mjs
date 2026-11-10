@@ -10,6 +10,13 @@ const COMMERCIAL_LICENSES = new Map([
   ["cc by-sa 3.0", "CC BY-SA 3.0"],
   ["cc by-sa 2.0", "CC BY-SA 2.0"],
   ["cc by-sa 1.0", "CC BY-SA 1.0"],
+  ["cc by 2.5", "CC BY 2.5"],
+  ["cc by-sa 2.5", "CC BY-SA 2.5"],
+  ["cc by-nd 4.0", "CC BY-ND 4.0"],
+  ["cc by-nd 3.0", "CC BY-ND 3.0"],
+  ["cc by-nd 2.0", "CC BY-ND 2.0"],
+  ["cc by-nd 1.0", "CC BY-ND 1.0"],
+  ["cc by-sa-nd 4.0", "CC BY-SA-ND 4.0"],
   ["cc by 4.0 international", "CC BY 4.0"],
   ["cc by-sa 4.0 international", "CC BY-SA 4.0"],
 ]);
