@@ -131,13 +131,14 @@ async function writeAndReview(candidate, researchPack) {
 // Every published article must have a commercially licensed cover photo.
  // Search topic and title before spending tokens on research and writing.
 async function pickCover(candidate) {
-  for (const query of [candidate.topic, candidate.title]) {
+  const queries = [...new Set([candidate.topic, candidate.title, candidate.category].map((value) => String(value || "").trim()).filter(Boolean))];
+  for (const query of queries) {
     if (!query) continue;
     try {
       const image = await findCommercialPhoto(query);
       if (image?.url) return image;
     } catch (error) {
-      console.warn("Cover image lookup failed", String(error.message).slice(0, 200));
+      console.warn("Cover image lookup failed", { query, error: String(error.message).slice(0, 200) });
     }
   }
   return null;
@@ -181,12 +182,12 @@ export async function runEditorialCycle(sql, cycle) {
     report.attempted[candidate.kind] += 1;
 
     try {
-      // Reject stale news and find a legal cover before making more model calls.
+      // Reject stale news and find a commercially reusable, relevant cover before making more model calls.
       if (candidate.kind === "current" && !isRecentEventDate(candidate.event_date, now)) {
         throw new Error("Candidate has no recent event date; skipped before research");
       }
       const image = await pickCover(candidate);
-      if (!image?.url) throw new Error("No commercially licensed cover image found; candidate skipped");
+      if (!image?.url) throw new Error("No relevant commercially reusable cover image found after topic, title, and category searches; candidate skipped");
 
       const researchPack = await research(candidate, now);
       const article = await writeAndReview(candidate, researchPack);
