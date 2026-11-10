@@ -138,7 +138,8 @@ async function pickCover(candidate) {
   const queries = [...new Set([...specificQueries, ...fallbackQueries].map((value) => String(value || "").trim()).filter(Boolean))];
   for (const query of queries) {
     try {
-      const image = await findCommercialPhoto(query);
+      const isGenericFallback = query === candidate.fallback_visual_query || query === CATEGORY_VISUAL_QUERIES[candidate.category] || query === candidate.category;
+      const image = await findCommercialPhoto(query, isGenericFallback ? { minMatches: 2 } : {});
       if (image?.url) return image;
     } catch (error) {
       console.warn("Cover image lookup failed", { query, error: String(error.message).slice(0, 200) });
