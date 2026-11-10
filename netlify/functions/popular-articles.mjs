@@ -11,7 +11,7 @@ export default async () => {
       WHERE m.day = current_date AND a.status = 'published' AND a.published_at <= now()
       ORDER BY m.views DESC, m.engaged_seconds DESC LIMIT 10
     `;
-    return Response.json({ articles });
+    return Response.json({ articles }, { headers: { "Netlify-CDN-Cache-Control": "public, max-age=60, stale-while-revalidate=120, durable" } });
   } catch (error) {
     console.error("Could not load popular articles", error);
     return Response.json({ articles: [] }, { status: 500 });
