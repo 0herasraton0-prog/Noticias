@@ -13,7 +13,14 @@ function card(item) {
 }
 
 export default async (request) => {
-  const slug = new URL(request.url).searchParams.get("slug")?.slice(0, 100);
+  const requestUrl = new URL(request.url);
+  const pathSlug = requestUrl.pathname.match(/^\\/articulo\\/([^/]+)\\/?$/i)?.[1];
+  const rawSlug = requestUrl.searchParams.get("slug") || pathSlug || "";
+  let slug = rawSlug;
+  if (!requestUrl.searchParams.has("slug") && pathSlug) {
+    try { slug = decodeURIComponent(pathSlug); } catch { slug = pathSlug; }
+  }
+  slug = slug.slice(0, 100);
   if (!slug) return new Response("Artículo no encontrado", { status: 404 });
   const sql = openDatabase();
   try {
