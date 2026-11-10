@@ -68,7 +68,7 @@ export async function repairLegacyArchive(sql) {
     FROM articles
     WHERE status = 'published' AND published_at <= now()
       AND (
-        NOT (category = ANY(${sql.array(EDITORIAL_CATEGORIES)}))
+        category IS NULL OR NOT (category = ANY(${sql.array(EDITORIAL_CATEGORIES)}))
         OR lower(coalesce(cover_credit, '')) IN ('true', 'false')
         OR (cover_url IS NULL AND cover_credit IS NULL)
       )
