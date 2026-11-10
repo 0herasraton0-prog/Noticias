@@ -1,3 +1,4 @@
+import { CATEGORY_VISUAL_QUERIES, EDITORIAL_CATEGORIES } from "./categories.mjs";
 import { citationsFrom, structuredResponse } from "./openai.mjs";
 import { findCommercialPhoto } from "./images.mjs";
 import { ARTICLE_SCHEMA, CANDIDATES_SCHEMA, DISCOVERY_INSTRUCTIONS, RESEARCH_INSTRUCTIONS, REVIEW_INSTRUCTIONS, REVIEW_SCHEMA, RESEARCH_SCHEMA, WRITER_INSTRUCTIONS } from "./prompts.mjs";
@@ -10,7 +11,7 @@ const isSocial = (url) => [...SOCIAL_HOSTS].some((host) => domainOf(url) === hos
 const slugify = (value) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 80);
 const wordCount = (value) => String(value).replace(/<[^>]+>/g, " ").split(/\s+/).filter(Boolean).length;
 const TARGET_PER_KIND = 3;
-const MAX_CANDIDATES_PER_KIND = 6;
+const MAX_CANDIDATES_PER_KIND = 9;
 const MAX_EDITORIAL_REPAIRS = 1;
 
 function isRecentEventDate(value, now) {
@@ -44,7 +45,7 @@ export async function withRetries(task, attempts = 3) {
 function isFatalCycleError(error) {
   const status = error?.status ?? error?.statusCode;
   const code = error?.code ?? error?.error?.code;
-  if (Number.isFinite(status) && status >= 400) return true;
+  if (status === 401 || status === 403 || status === 429 || (Number.isFinite(status) && status >= 500)) return true;
   if (["usage_accounting_failed", "insufficient_quota", "project_spend_limit_exceeded", "credit_balance_exhausted"].includes(code)) return true;
   return /monthly API budget|OPENAI_API_KEY|invalid api key|model.*not found|database|connection|ECONN|ETIMEDOUT|fetch failed|network error/i.test(String(error?.message || ""));
 }
@@ -54,11 +55,11 @@ export async function discoverCandidates(sql, now) {
   const brief = recent.map((row) => `${row.title} [${row.topic_key}]`).join("\n");
   const { data } = await structuredResponse({
     name: "editorial_candidates", schema: CANDIDATES_SCHEMA, instructions: DISCOVERY_INSTRUCTIONS, webSearch: true,
-    input: `Hora actual: ${now.toISOString()}. Busca temas nuevos. Evita duplicar estos artículos recientes:\n${brief || "(ninguno)"}\nDevuelve hasta seis noticias y seis curiosidades, ordenadas por relevancia. Los primeros tres temas válidos de cada tipo son los principales; los restantes son reservas para sustituir fallos. Si no hay calidad suficiente, devuelve menos.`,
+    input: `Hora actual: ${now.toISOString()}. Busca temas nuevos. Evita duplicar estos artículos recientes:\n${brief || "(ninguno)"}\nDevuelve hasta nueve noticias y nueve curiosidades, ordenadas por relevancia. Los primeros tres temas válidos de cada tipo son los principales; los siguientes seis son reservas para sustituir fallos de investigación, fotografía o revisión. Si no hay calidad suficiente, devuelve menos.`,
   });
   const counts = { current: 0, curiosity: 0 };
   return data.candidates.filter((candidate) => {
-    if (!["current", "curiosity"].includes(candidate.kind) || counts[candidate.kind] >= MAX_CANDIDATES_PER_KIND) return false;
+    if (!["current", "curiosity"].includes(candidate.kind) || !EDITORIAL_CATEGORIES.includes(candidate.category) || counts[candidate.kind] >= MAX_CANDIDATES_PER_KIND) return false;
     counts[candidate.kind] += 1;
     return true;
   }).slice(0, MAX_CANDIDATES_PER_KIND * 2);
@@ -91,7 +92,7 @@ async function writeAndReview(candidate, researchPack) {
       input: `Candidato:\n${JSON.stringify(candidate)}\nDossier investigado:\n${JSON.stringify(researchPack.dossier)}\nFuentes comprobadas:\n${JSON.stringify(researchPack.sources)}\n${revision ? `Corrige este borrador siguiendo estos fallos: ${feedback.join("; ")}\nBorrador anterior: ${JSON.stringify(previousDraft)}` : "Escribe el artículo desde cero."}`,
     }));
 
-    article.event_date = candidate.kind === "current" ? researchPack.dossier.event_date : null;
+    article.event_date = candidate.kind === "current" ? researchPack.dossier.event_date : null;\n    article.category = candidate.category;
     const issues = [];
     if (!Array.isArray(article.body) || article.body.length < 5 || article.body.some((paragraph) => wordCount(paragraph) < 20 || wordCount(paragraph) > 180)) {
       issues.push("El artículo debe tener al menos cinco párrafos de 20 a 180 palabras.");
@@ -131,9 +132,10 @@ async function writeAndReview(candidate, researchPack) {
 // Every published article must have a commercially licensed cover photo.
  // Search topic and title before spending tokens on research and writing.
 async function pickCover(candidate) {
-  const queries = [...new Set([candidate.topic, candidate.title, candidate.category].map((value) => String(value || "").trim()).filter(Boolean))];
+  const specificQueries = [candidate.visual_query, candidate.topic, candidate.title];
+  const fallbackQueries = [candidate.fallback_visual_query, CATEGORY_VISUAL_QUERIES[candidate.category], candidate.category];
+  const queries = [...new Set([...specificQueries, ...fallbackQueries].map((value) => String(value || "").trim()).filter(Boolean))];
   for (const query of queries) {
-    if (!query) continue;
     try {
       const image = await findCommercialPhoto(query);
       if (image?.url) return image;
@@ -203,6 +205,14 @@ export async function runEditorialCycle(sql, cycle) {
         break;
       }
     }
+  }
+
+  report.shortage = {
+    current: Math.max(0, TARGET_PER_KIND - publishedCounts.current),
+    curiosity: Math.max(0, TARGET_PER_KIND - publishedCounts.curiosity),
+  };
+  if (report.shortage.current || report.shortage.curiosity) {
+    console.warn("Editorial cycle did not reach its publication targets", JSON.stringify(report.shortage));
   }
 
   const publishedCuriosities = report.published.filter((item) => item.kind === "curiosity");
