@@ -1,12 +1,14 @@
 import { getConnectionString } from "@netlify/database";
 import postgres from "postgres";
+import { repairLegacyArchive } from "../../src/server/article-maintenance.mjs";
 
 export default async () => {
   const sql = postgres(getConnectionString(), { max: 1 });
   try {
+    await repairLegacyArchive(sql);
     const articles = await sql`
       SELECT id, slug, title, dek, kind, category, region, event_date,
-             published_at, cover_url, cover_credit, tags, reading_minutes
+             published_at, cover_url, cover_source_url, cover_credit, cover_license, tags, reading_minutes
       FROM articles
       WHERE status = 'published' AND published_at <= now()
       ORDER BY CASE WHEN kind = 'current' AND published_at > now() - interval '3 days' THEN 0 ELSE 1 END,
