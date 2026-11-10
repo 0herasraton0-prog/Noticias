@@ -13,9 +13,16 @@ search?.addEventListener("keydown", (event) => {
   }
 });
 
-document.querySelector("#cookie-settings")?.addEventListener("click", () => {
-  window.dispatchEvent(new CustomEvent("open-cookie-preferences"));
-});
+function openCookiePreferences() {
+  const googlefc = window.googlefc;
+  if (typeof googlefc?.showRevocationMessage === "function") {
+    googlefc.callbackQueue = googlefc.callbackQueue || [];
+    googlefc.callbackQueue.push(googlefc.showRevocationMessage);
+  } else {
+    window.location.href = "/cookies";
+  }
+}
+document.querySelector("#cookie-settings")?.addEventListener("click", openCookiePreferences);
 
 const escapeHtml = (value = "") => String(value).replace(/[&<>"']/g, (char) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
