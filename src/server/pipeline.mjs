@@ -45,7 +45,7 @@ function isFatalCycleError(error) {
   const status = error?.status ?? error?.statusCode;
   const code = error?.code ?? error?.error?.code;
   if (Number.isFinite(status) && status >= 400) return true;
-  if (["insufficient_quota", "project_spend_limit_exceeded", "credit_balance_exhausted"].includes(code)) return true;
+  if (["usage_accounting_failed", "insufficient_quota", "project_spend_limit_exceeded", "credit_balance_exhausted"].includes(code)) return true;
   return /monthly API budget|OPENAI_API_KEY|invalid api key|model.*not found|database|connection|ECONN|ETIMEDOUT|fetch failed|network error/i.test(String(error?.message || ""));
 }
 
