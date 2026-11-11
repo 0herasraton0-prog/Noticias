@@ -132,14 +132,16 @@ async function writeAndReview(candidate, researchPack) {
 }
 // Every published article must have a commercially licensed cover photo.
  // Search topic and title before spending tokens on research and writing.
-async function pickCover(candidate) {
-  const specificQueries = [candidate.visual_query, candidate.topic, candidate.title];
-  const fallbackQueries = [candidate.fallback_visual_query, CATEGORY_VISUAL_QUERIES[candidate.category], candidate.category];
-  const queries = [...new Set([...specificQueries, ...fallbackQueries].map((value) => String(value || "").trim()).filter(Boolean))];
+async function pickCover(candidate, excludedCoverUrls) {
+  const queries = [...new Set([
+    candidate.visual_query,
+    candidate.fallback_visual_query,
+    candidate.topic,
+    candidate.title,
+  ].map((value) => String(value || "").trim()).filter(Boolean))];
   for (const query of queries) {
     try {
-      const isGenericFallback = query === candidate.fallback_visual_query || query === CATEGORY_VISUAL_QUERIES[candidate.category] || query === candidate.category;
-      const image = await findCommercialPhoto(query, isGenericFallback ? { minMatches: 2 } : {});
+      const image = await findCommercialPhoto(query, { excludeUrls: excludedCoverUrls });
       if (image?.url) return image;
     } catch (error) {
       console.warn("Cover image lookup failed", { query, error: String(error.message).slice(0, 200) });
@@ -179,6 +181,8 @@ export async function runEditorialCycle(sql, cycle) {
     featuredCuriosities: [],
   };
   const publishedCounts = { current: 0, curiosity: 0 };
+  const priorCovers = await sql`SELECT cover_url, cover_source_url FROM articles WHERE cover_url IS NOT NULL AND published_at > now() - interval '90 days'`;
+  const usedCoverUrls = new Set(priorCovers.flatMap((row) => [row.cover_url, row.cover_source_url]).filter(Boolean));
 
   for (const candidate of candidates) {
     if (publishedCounts[candidate.kind] >= TARGET_PER_KIND) continue;
@@ -190,13 +194,14 @@ export async function runEditorialCycle(sql, cycle) {
       if (candidate.kind === "current" && !isRecentEventDate(candidate.event_date, now)) {
         throw new Error("Candidate has no recent event date; skipped before research");
       }
-      const image = await pickCover(candidate);
+      const image = await pickCover(candidate, usedCoverUrls);
       if (!image?.url) console.warn("No relevant free cover photo found; publishing with the neutral category placeholder", JSON.stringify({ title: candidate.title, category: candidate.category }));
 
       const researchPack = await research(candidate, now);
       const article = await writeAndReview(candidate, researchPack);
       const result = await withRetries(() => saveArticle(sql, article, researchPack.sources, image, cycle.cycleId));
       report.published.push({ ...result, kind: article.kind });
+      if (image?.url) { usedCoverUrls.add(image.url); if (image.sourceUrl) usedCoverUrls.add(image.sourceUrl); }
       publishedCounts[article.kind] += 1;
     } catch (error) {
       const failure = { title: candidate.title, kind: candidate.kind, reason: String(error.message).slice(0, 500) };
