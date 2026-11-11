@@ -1,51 +1,28 @@
-const COMMERCIAL_LICENSES = new Map([
+const ALLOWED_LICENSES = new Map([
   ["cc0", "CC0"],
-  ["public domain", "Public domain"],
-  ["pd", "Public domain"],
-  ["cc by 4.0", "CC BY 4.0"],
-  ["cc by 3.0", "CC BY 3.0"],
-  ["cc by 2.5", "CC BY 2.5"],
-  ["cc by 2.0", "CC BY 2.0"],
-  ["cc by 1.0", "CC BY 1.0"],
-  ["cc by-sa 4.0", "CC BY-SA 4.0"],
-  ["cc by-sa 3.0", "CC BY-SA 3.0"],
-  ["cc by-sa 2.5", "CC BY-SA 2.5"],
-  ["cc by-sa 2.0", "CC BY-SA 2.0"],
-  ["cc by-sa 1.0", "CC BY-SA 1.0"],
-  ["cc by-nd 4.0", "CC BY-ND 4.0"],
-  ["cc by-nd 3.0", "CC BY-ND 3.0"],
-  ["cc by-nd 2.0", "CC BY-ND 2.0"],
-  ["cc by-nd 1.0", "CC BY-ND 1.0"],
-  ["cc by-sa-nd 4.0", "CC BY-SA-ND 4.0"],
-  ["cc by 4.0 international", "CC BY 4.0"],
-  ["cc by-sa 4.0 international", "CC BY-SA 4.0"],
+  ["pdm", "Public domain"],
+  ["by", "CC BY"],
+  ["by-sa", "CC BY-SA"],
 ]);
 
 const STOP_WORDS = new Set([
   "the", "and", "for", "with", "from", "that", "this", "into", "over", "under", "near",
   "una", "uno", "unos", "unas", "sobre", "entre", "desde", "para", "con", "por", "del",
-  "las", "los", "que", "como", "una", "unos", "este", "esta", "estos", "estas", "foto",
-  "image", "photo", "photograph", "picture", "file", "commons", "wikipedia",
+  "las", "los", "que", "como", "este", "esta", "estos", "estas", "foto", "image", "photo",
+  "photograph", "picture", "commons", "wikipedia", "free", "license", "licensed",
 ]);
 
-function cleanHtml(value = "") {
-  return String(value).replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
-}
-
-function commercialLicense(value = "") {
-  const normalized = cleanHtml(value).toLowerCase().replace(/\s+/g, " ").trim();
-  if (/\b(nc|non.?commercial)\b/.test(normalized)) return null;
-  for (const [label, display] of COMMERCIAL_LICENSES) {
-    if (normalized === label || normalized.startsWith(label + " ")) return display;
-  }
-  if (/^cc by-sa-nd(?:\s|$)/i.test(normalized)) return "CC BY-SA-ND";
-  if (/^cc by-nd(?:\s|$)/i.test(normalized)) return "CC BY-ND";
-  if (/^gfdl(?:\s|$)/i.test(normalized)) return "GFDL";
-  return null;
+function plainText(value = "") {
+  return String(value)
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function terms(value) {
-  return cleanHtml(value)
+  return plainText(value)
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
@@ -54,63 +31,103 @@ function terms(value) {
     .filter((word) => word.length >= 3 && !STOP_WORDS.has(word));
 }
 
-function relevance(queryTerms, page, metadata, minMatches = null) {
-  if (!queryTerms.length) return 0;
-  const content = new Set(terms([
-    page.title,
-    metadata.ImageDescription?.value,
-    metadata.ObjectName?.value,
-    metadata.Categories?.value,
-    metadata.Subject?.value,
-  ].join(" ")));
-  const matches = queryTerms.filter((term) => content.has(term)).length;
-  const minimum = minMatches ?? (queryTerms.length <= 2 ? 1 : Math.min(3, Math.max(1, Math.ceil(queryTerms.length * 0.25))));
-  return matches >= minimum ? matches / queryTerms.length : 0;
+function normalizedUrl(value) {
+  try {
+    const url = new URL(value);
+    url.hash = "";
+    url.search = "";
+    return url.toString().replace(/\/$/, "").toLowerCase();
+  } catch {
+    return String(value || "").trim().toLowerCase();
+  }
 }
 
-function isPhotoFile(page, info) {
-  if (!info?.thumburl) return false;
-  if (/\.(?:djvu|pdf|svg|xcf|psd)$/i.test(page.title || "")) return false;
-  if (info.mime && !/^image\/(?:jpeg|png|webp|tiff|gif)$/i.test(info.mime)) return false;
-  return true;
+function isExcluded(result, excluded) {
+  const candidates = [result.id, result.url, result.thumbnail, result.foreign_landing_url]
+    .filter(Boolean)
+    .map(normalizedUrl);
+  return candidates.some((value) => excluded.has(value));
 }
 
+function rankResult(queryTerms, result) {
+  const titleTerms = new Set(terms(result.title));
+  const tagTerms = new Set((result.tags || []).flatMap((tag) => terms(tag.name || "")));
+  const allTerms = new Set([...titleTerms, ...tagTerms]);
+  const matches = queryTerms.filter((term) => allTerms.has(term)).length;
+  const minimum = queryTerms.length === 1 ? 1 : 2;
+  if (matches < minimum) return 0;
+
+  const titleMatches = queryTerms.filter((term) => titleTerms.has(term)).length;
+  const coverage = matches / queryTerms.length;
+  const license = String(result.license || "").toLowerCase();
+  const licenseBonus = license === "cc0" || license === "pdm" ? 0.08 : 0;
+  return coverage + (titleMatches / queryTerms.length) * 0.25 + licenseBonus;
+}
+
+function attributionFor(result, licenseLabel) {
+  const parts = [
+    plainText(result.creator || "Autor no identificado"),
+    plainText(result.title || "Fotografía"),
+    licenseLabel,
+  ].filter(Boolean);
+  return parts.join(" — ");
+}
+
+/**
+ * Search Openverse for distinct, commercially reusable photographs.
+ * Results are filtered to CC0, public domain, CC BY and CC BY-SA; non-commercial
+ * and no-derivatives licences are never accepted.
+ */
 export async function findCommercialPhoto(query, options = {}) {
   const queryTerms = [...new Set(terms(query))];
   if (!queryTerms.length) return null;
 
-  const url = new URL("https://commons.wikimedia.org/w/api.php");
-  url.search = new URLSearchParams({
-    action: "query",
-    generator: "search",
-    gsrsearch: query,
-    gsrnamespace: "6",
-    gsrlimit: "40",
-    prop: "imageinfo",
-    iiprop: "url|extmetadata|mime",
-    iiurlwidth: "1400",
-    format: "json",
-    origin: "*",
+  const excluded = new Set([...(options.excludeUrls || [])].map(normalizedUrl));
+  const endpoint = new URL("https://api.openverse.org/v1/images/");
+  endpoint.search = new URLSearchParams({
+    q: query,
+    license_type: "commercial",
+    category: "photograph",
+    extension: "jpg,jpeg,png,webp",
+    filter_dead: "true",
+    mature: "false",
+    page_size: "40",
   });
-  const response = await fetch(url, { headers: { "user-agent": "EditorialWeb/0.2 (image rights and relevance lookup)" } });
-  if (!response.ok) throw new Error(`Wikimedia Commons returned ${response.status}`);
+
+  const response = await fetch(endpoint, {
+    headers: { accept: "application/json", "user-agent": "Curioynoticias24h/1.0 (openly licensed photo search)" },
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!response.ok) throw new Error("Openverse returned " + response.status);
   const payload = await response.json();
-  const pages = Object.values(payload.query?.pages ?? {});
-  let best = null;
-  let bestScore = 0;
+  const candidates = [];
 
-  for (const page of pages) {
-    const info = page.imageinfo?.[0];
-    const metadata = info?.extmetadata ?? {};
-    const license = commercialLicense(metadata.LicenseShortName?.value ?? metadata.License?.value ?? "");
-    if (!isPhotoFile(page, info) || !license) continue;
-    const score = relevance(queryTerms, page, metadata, options.minMatches ?? null);
-    if (score <= bestScore) continue;
+  for (const result of payload.results || []) {
+    const licenseKey = String(result.license || "").toLowerCase();
+    const licenseLabel = ALLOWED_LICENSES.get(licenseKey);
+    if (!licenseLabel || result.mature || isExcluded(result, excluded)) continue;
+    if (result.category && result.category !== "photograph") continue;
+    if ((result.width || 0) > 0 && result.width < 600) continue;
 
-    const artist = cleanHtml(metadata.Artist?.value ?? "Wikimedia Commons contributor");
-    const credit = [artist, page.title, license, info.descriptionurl].filter(Boolean).join(" — ");
-    best = { url: info.thumburl, sourceUrl: info.descriptionurl, license, credit };
-    bestScore = score;
+    const imageUrl = result.thumbnail || result.url;
+    if (!imageUrl || !result.foreign_landing_url || !/^https:\/\//i.test(imageUrl)) continue;
+    const score = rankResult(queryTerms, result);
+    if (!score) continue;
+
+    candidates.push({
+      score,
+      licenseBonus: licenseKey === "cc0" || licenseKey === "pdm" ? 1 : 0,
+      image: {
+        id: result.id,
+        url: imageUrl,
+        sourceUrl: result.foreign_landing_url,
+        license: licenseLabel + (result.license_version ? " " + result.license_version : ""),
+        credit: attributionFor(result, licenseLabel),
+        title: plainText(result.title || ""),
+      },
+    });
   }
-  return best;
+
+  candidates.sort((a, b) => b.score - a.score || b.licenseBonus - a.licenseBonus);
+  return candidates[0]?.image || null;
 }
