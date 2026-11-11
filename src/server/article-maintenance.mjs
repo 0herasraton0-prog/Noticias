@@ -77,3 +77,66 @@ export async function repairLegacyArchive(sql) {
   `;
   return repairLegacyArticles(sql, legacy);
 }
+
+function coverKey(value) {
+  try {
+    const url = new URL(value);
+    url.hash = "";
+    url.search = "";
+    return url.toString().replace(/\/$/, "").toLowerCase();
+  } catch {
+    return String(value || "").trim().toLowerCase();
+  }
+}
+
+export async function repairDuplicateCovers(sql, articles) {
+  const seen = new Set();
+  for (const article of articles || []) {
+    if (!article?.cover_url) continue;
+    const keys = [article.cover_url, article.cover_source_url].filter(Boolean).map(coverKey);
+    if (!keys.some((key) => seen.has(key))) {
+      keys.forEach((key) => seen.add(key));
+      continue;
+    }
+
+    let image = null;
+    const queries = [
+      ...(Array.isArray(article.tags) ? article.tags.slice(0, 3) : []),
+      article.title,
+      CATEGORY_VISUAL_QUERIES[article.category],
+    ].filter(Boolean);
+    for (const query of [...new Set(queries)]) {
+      try {
+        image = await findCommercialPhoto(query, { excludeUrls: seen });
+        if (image?.url) break;
+      } catch (error) {
+        console.warn("Duplicate cover replacement lookup failed", { id: article.id, error: String(error.message).slice(0, 160) });
+      }
+    }
+
+    const replacement = {
+      cover_url: image?.url ?? null,
+      cover_source_url: image?.sourceUrl ?? null,
+      cover_credit: image?.credit ?? "Sin fotografía libre localizada",
+      cover_license: image?.license ?? null,
+    };
+    try {
+      await sql`
+        UPDATE articles
+        SET cover_url = ${replacement.cover_url},
+            cover_source_url = ${replacement.cover_source_url},
+            cover_credit = ${replacement.cover_credit},
+            cover_license = ${replacement.cover_license}
+        WHERE id = ${article.id}
+      `;
+    } catch (error) {
+      console.error("Could not save duplicate cover replacement", { id: article.id, error: String(error.message).slice(0, 180) });
+    }
+    Object.assign(article, replacement);
+    if (image?.url) {
+      seen.add(coverKey(image.url));
+      if (image.sourceUrl) seen.add(coverKey(image.sourceUrl));
+    }
+  }
+  return articles;
+}
