@@ -54,11 +54,11 @@ function rankResult(queryTerms, result) {
   const tagTerms = new Set((result.tags || []).flatMap((tag) => terms(tag.name || "")));
   const allTerms = new Set([...titleTerms, ...tagTerms]);
   const matches = queryTerms.filter((term) => allTerms.has(term)).length;
-  const minimum = queryTerms.length === 1 ? 1 : 2;
-  if (matches < minimum) return 0;
+  const minimum = queryTerms.length === 1 ? 1 : queryTerms.length <= 3 ? 2 : 3;
+  const coverage = matches / queryTerms.length;
+  if (matches < minimum || (queryTerms.length >= 4 && coverage < 0.35)) return 0;
 
   const titleMatches = queryTerms.filter((term) => titleTerms.has(term)).length;
-  const coverage = matches / queryTerms.length;
   const license = String(result.license || "").toLowerCase();
   const licenseBonus = license === "cc0" || license === "pdm" ? 0.08 : 0;
   return coverage + (titleMatches / queryTerms.length) * 0.25 + licenseBonus;
@@ -109,7 +109,8 @@ export async function findCommercialPhoto(query, options = {}) {
     if (result.category && result.category !== "photograph") continue;
     if ((result.width || 0) > 0 && result.width < 600) continue;
 
-    const imageUrl = result.thumbnail || result.url;
+    const imageUrl = result.url;
+    // Use the original image URL for crisp, large article covers; thumbnails are often tiny.
     if (!imageUrl || !result.foreign_landing_url || !/^https:\/\//i.test(imageUrl)) continue;
     const score = rankResult(queryTerms, result);
     if (!score) continue;
