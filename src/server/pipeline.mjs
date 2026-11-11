@@ -138,6 +138,7 @@ async function pickCover(candidate, excludedCoverUrls) {
     candidate.fallback_visual_query,
     candidate.topic,
     candidate.title,
+    ...(candidate.kind === "curiosity" ? [CATEGORY_VISUAL_QUERIES[candidate.category]] : []),
   ].map((value) => String(value || "").trim()).filter(Boolean))];
   for (const query of queries) {
     try {
