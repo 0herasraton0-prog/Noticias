@@ -1,8 +1,6 @@
 const ALLOWED_LICENSES = new Map([
   ["cc0", "CC0"],
   ["pdm", "Public domain"],
-  ["by", "CC BY"],
-  ["by-sa", "CC BY-SA"],
 ]);
 
 const STOP_WORDS = new Set([
@@ -75,8 +73,8 @@ function attributionFor(result, licenseLabel) {
 
 /**
  * Search Openverse for distinct, commercially reusable photographs.
- * Results are filtered to CC0, public domain, CC BY and CC BY-SA; non-commercial
- * and no-derivatives licences are never accepted.
+ * Only CC0 and public-domain photographs are accepted, avoiding attribution
+ * requirements and restrictive reuse terms.
  */
 export async function findCommercialPhoto(query, options = {}) {
   const queryTerms = [...new Set(terms(query))];
