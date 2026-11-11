@@ -15,3 +15,23 @@ body.dark .article-body,body.dark .article-body strong{color:var(--ink)}
 /* Preserve complete cover photos; reveal titles over a shaded image on hover/focus. */
 @media (hover:none){.story-image-title,.related-image-title{opacity:1;padding-top:26px}}
 body.dark .story-image img,body.dark .related-image img,body.dark .article-cover img{background:#202b3a}
+
+
+/* Large, image-led cards on the front page. */
+#latest-list{grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:stretch}
+#latest-list .story-card{display:flex;flex-direction:column;gap:0;padding:0;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--paper)}
+#latest-list .story-card:first-child{padding-top:0;border-top:1px solid var(--line)}
+#latest-list .story-image{width:100%;height:auto;min-height:0;aspect-ratio:4/3;border-radius:0}
+#latest-list .story-image img,#latest-list .card-placeholder{width:100%;height:100%;min-height:0;object-fit:cover}
+#latest-list .story-copy{padding:13px 14px 15px}
+#latest-list .story-copy p,#latest-list .story-meta,#curiosity-list .story-copy p,#curiosity-list .story-meta{display:none}
+.curiosity-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.curiosity-card{display:flex;flex-direction:column;padding:0;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.curiosity-card .story-image{width:100%;height:auto;min-height:0;aspect-ratio:4/3;border-radius:0}
+.curiosity-card .story-image img,.curiosity-card .card-placeholder{width:100%;height:100%;min-height:0;object-fit:cover}
+.curiosity-card .story-copy{padding:13px 14px 15px}
+.article-cover img{width:100%;height:clamp(320px,54vw,660px);max-height:660px;object-fit:cover}
+.related-image{width:100%;height:auto;min-height:0;aspect-ratio:4/3}
+.related-image img{width:100%;height:100%;object-fit:cover}
+@media(max-width:900px){#latest-list,.curiosity-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:650px){#latest-list,.curiosity-grid{grid-template-columns:1fr}#latest-list .story-image,.curiosity-card .story-image{aspect-ratio:16/10}.article-cover img{height:clamp(230px,68vw,390px);min-height:0}.related-image{aspect-ratio:4/3}}
