@@ -1,6 +1,6 @@
 const ALLOWED_LICENSES = new Map([
   ["cc0", "CC0"],
-  ["pdm", "Public domain"],
+  ["pdm", "Dominio público"],
   ["by", "CC BY"],
   ["by-sa", "CC BY-SA"],
 ]);
@@ -13,122 +13,124 @@ const STOP_WORDS = new Set([
 ]);
 
 function plainText(value = "") {
-  return String(value)
-    .replace(/<[^>]*>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/\s+/g, " ")
-    .trim();
+  return String(value).replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/\\s+/g, " ").trim();
 }
 
 function terms(value) {
-  return plainText(value)
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .split(/\s+/)
+  return plainText(value).normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ").split(/\\s+/)
     .filter((word) => word.length >= 3 && !STOP_WORDS.has(word));
 }
 
 function normalizedUrl(value) {
-  try {
-    const url = new URL(value);
-    url.hash = "";
-    url.search = "";
-    return url.toString().replace(/\/$/, "").toLowerCase();
-  } catch {
-    return String(value || "").trim().toLowerCase();
-  }
+  try { const url = new URL(value); url.hash = ""; url.search = ""; return url.toString().replace(/\\/$/, "").toLowerCase(); }
+  catch { return String(value || "").trim().toLowerCase(); }
 }
 
 function isExcluded(result, excluded) {
-  const candidates = [result.id, result.url, result.thumbnail, result.foreign_landing_url]
-    .filter(Boolean)
-    .map(normalizedUrl);
-  return candidates.some((value) => excluded.has(value));
+  return [result.id, result.url, result.thumbnail, result.sourceUrl, result.foreign_landing_url]
+    .filter(Boolean).some((value) => excluded.has(normalizedUrl(value)));
 }
 
-function rankResult(queryTerms, result) {
-  const titleTerms = new Set(terms(result.title));
-  const tagTerms = new Set((result.tags || []).flatMap((tag) => terms(tag.name || "")));
-  const allTerms = new Set([...titleTerms, ...tagTerms]);
-  const matches = queryTerms.filter((term) => allTerms.has(term)).length;
-  const minimum = queryTerms.length <= 3 ? 1 : 2;
-  const coverage = matches / queryTerms.length;
-  if (matches < minimum || (queryTerms.length >= 5 && coverage < 0.2)) return 0;
-
-  const titleMatches = queryTerms.filter((term) => titleTerms.has(term)).length;
-  const license = String(result.license || "").toLowerCase();
-  const licenseBonus = license === "cc0" || license === "pdm" ? 0.08 : 0;
-  return coverage + (titleMatches / queryTerms.length) * 0.25 + licenseBonus;
+function scoreFor(query, title, tags = []) {
+  const q = [...new Set(terms(query))];
+  const available = new Set([...terms(title), ...tags.flatMap((tag) => terms(tag.name || tag))]);
+  const matched = q.filter((term) => available.has(term)).length;
+  if (!matched || (q.length >= 5 && matched < 2)) return 0;
+  return matched / Math.max(1, q.length);
 }
 
-function attributionFor(result, licenseLabel) {
-  const parts = [
-    plainText(result.creator || "Autor no identificado"),
-    plainText(result.title || "Fotografía"),
-    licenseLabel,
-  ].filter(Boolean);
-  return parts.join(" — ");
+function attribution(creator, title, license) {
+  return [plainText(creator || "Autor no identificado"), plainText(title || "Fotografía"), license].filter(Boolean).join(" — ");
 }
 
-/**
- * Search Openverse for distinct, commercially reusable photographs.
- * Accepts commercially reusable CC0, public-domain, CC BY and CC BY-SA
- * photographs. Attribution is included for display wherever the licence requires it.
- */
-export async function findCommercialPhoto(query, options = {}) {
-  const queryTerms = [...new Set(terms(query))];
-  if (!queryTerms.length) return null;
-
-  const excluded = new Set([...(options.excludeUrls || [])].map(normalizedUrl));
+async function searchOpenverse(query, excluded) {
   const endpoint = new URL("https://api.openverse.org/v1/images/");
   endpoint.search = new URLSearchParams({
-    q: query,
-    license_type: "commercial",
-    category: "photograph",
-    extension: "jpg,jpeg,png,webp",
-    filter_dead: "true",
-    mature: "false",
-    page_size: "40",
+    q: query, license_type: "commercial", category: "photograph",
+    extension: "jpg,jpeg,png,webp", filter_dead: "true", mature: "false", page_size: "40",
   });
-
-  const response = await fetch(endpoint, {
-    headers: { accept: "application/json", "user-agent": "Curioynoticias24h/1.0 (openly licensed photo search)" },
-    signal: AbortSignal.timeout(8000),
-  });
-  if (!response.ok) throw new Error("Openverse returned " + response.status);
+  const response = await fetch(endpoint, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(5000) });
+  if (!response.ok) throw new Error("Openverse " + response.status);
   const payload = await response.json();
   const candidates = [];
-
-  for (const result of payload.results || []) {
-    const licenseKey = String(result.license || "").toLowerCase();
-    const licenseLabel = ALLOWED_LICENSES.get(licenseKey);
-    if (!licenseLabel || result.mature || isExcluded(result, excluded)) continue;
-    if (result.category && result.category !== "photograph") continue;
-    if ((result.width || 0) > 0 && result.width < 600) continue;
-
-    const imageUrl = result.url;
-    // Use the original image URL for crisp, large article covers; thumbnails are often tiny.
-    if (!imageUrl || !result.foreign_landing_url || !/^https:\/\//i.test(imageUrl)) continue;
-    const score = rankResult(queryTerms, result);
+  for (const item of payload.results || []) {
+    const license = ALLOWED_LICENSES.get(String(item.license || "").toLowerCase());
+    if (!license || item.mature || isExcluded(item, excluded) || (item.width && item.width < 500)) continue;
+    const url = item.thumbnail || item.url;
+    if (!url || !/^https:\\/\\//i.test(url)) continue;
+    const score = scoreFor(query, item.title, item.tags || []);
     if (!score) continue;
-
     candidates.push({
       score,
-      licenseBonus: licenseKey === "cc0" || licenseKey === "pdm" ? 1 : 0,
       image: {
-        id: result.id,
-        url: imageUrl,
-        sourceUrl: result.foreign_landing_url,
-        license: licenseLabel + (result.license_version ? " " + result.license_version : ""),
-        credit: attributionFor(result, licenseLabel),
-        title: plainText(result.title || ""),
+        id: item.id, url, sourceUrl: item.foreign_landing_url,
+        license: license + (item.license_version ? " " + item.license_version : ""),
+        credit: attribution(item.creator, item.title, license), title: plainText(item.title || ""),
       },
     });
   }
-
-  candidates.sort((a, b) => b.score - a.score || b.licenseBonus - a.licenseBonus);
+  candidates.sort((a, b) => b.score - a.score);
   return candidates[0]?.image || null;
+}
+
+function metadataValue(metadata, key) {
+  return plainText(metadata?.[key]?.value || "");
+}
+
+async function searchWikimedia(query, excluded) {
+  const endpoint = new URL("https://commons.wikimedia.org/w/api.php");
+  endpoint.search = new URLSearchParams({
+    action: "query", generator: "search", gsrsearch: query, gsrnamespace: "6", gsrlimit: "30",
+    prop: "imageinfo", iiprop: "url|extmetadata|size", iiurlwidth: "1600", format: "json",
+    origin: "*",
+  });
+  const response = await fetch(endpoint, {
+    headers: { accept: "application/json", "user-agent": "Curioynoticias24h/1.0 (free photo attribution; contact: privacidad@curioynoticias24h.com)" },
+    signal: AbortSignal.timeout(6000),
+  });
+  if (!response.ok) throw new Error("Wikimedia Commons " + response.status);
+  const payload = await response.json();
+  const candidates = [];
+  for (const page of Object.values(payload.query?.pages || {})) {
+    const info = page.imageinfo?.[0];
+    const meta = info?.extmetadata || {};
+    const licenseText = metadataValue(meta, "LicenseShortName");
+    const lower = licenseText.toLowerCase();
+    if (!info || (info.width || 0) < 500 || /non.?commercial|no.?derivative|gfdl/.test(lower)) continue;
+    const isOpen = /public domain|cc0|cc by(?:-sa)?(?:-|$| )/i.test(licenseText);
+    if (!isOpen) continue;
+    const url = info.thumburl || info.url;
+    const sourceUrl = page.canonicalurl || "https://commons.wikimedia.org/wiki/" + encodeURIComponent(page.title.replaceAll(" ", "_"));
+    if (!url || !/^https:\\/\\//i.test(url) || isExcluded({ id: page.title, url, sourceUrl }, excluded)) continue;
+    const title = plainText(page.title.replace(/^File:/, "").replace(/\\.[^.]+$/, "").replaceAll("_", " "));
+    const score = scoreFor(query, title);
+    if (!score) continue;
+    const license = /public domain/i.test(licenseText) ? "Dominio público" : licenseText;
+    const creator = metadataValue(meta, "Artist");
+    candidates.push({
+      score,
+      image: { id: page.title, url, sourceUrl, license, credit: attribution(creator, title, license), title },
+    });
+  }
+  candidates.sort((a, b) => b.score - a.score);
+  return candidates[0]?.image || null;
+}
+
+/** Finds a relevant photo with a reusable license, trying two independent indexes. */
+export async function findCommercialPhoto(query, options = {}) {
+  if (!terms(query).length) return null;
+  const excluded = new Set([...(options.excludeUrls || [])].map(normalizedUrl));
+  try {
+    const photo = await searchOpenverse(query, excluded);
+    if (photo) return photo;
+  } catch (error) {
+    console.warn("Openverse image search failed", String(error.message).slice(0, 160));
+  }
+  try {
+    return await searchWikimedia(query, excluded);
+  } catch (error) {
+    console.warn("Wikimedia Commons image search failed", String(error.message).slice(0, 160));
+    return null;
+  }
 }
