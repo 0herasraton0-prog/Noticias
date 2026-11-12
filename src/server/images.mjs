@@ -1,6 +1,8 @@
 const ALLOWED_LICENSES = new Map([
   ["cc0", "CC0"],
   ["pdm", "Public domain"],
+  ["by", "CC BY"],
+  ["by-sa", "CC BY-SA"],
 ]);
 
 const STOP_WORDS = new Set([
@@ -52,9 +54,9 @@ function rankResult(queryTerms, result) {
   const tagTerms = new Set((result.tags || []).flatMap((tag) => terms(tag.name || "")));
   const allTerms = new Set([...titleTerms, ...tagTerms]);
   const matches = queryTerms.filter((term) => allTerms.has(term)).length;
-  const minimum = queryTerms.length === 1 ? 1 : queryTerms.length <= 3 ? 2 : 3;
+  const minimum = queryTerms.length <= 3 ? 1 : 2;
   const coverage = matches / queryTerms.length;
-  if (matches < minimum || (queryTerms.length >= 4 && coverage < 0.35)) return 0;
+  if (matches < minimum || (queryTerms.length >= 5 && coverage < 0.2)) return 0;
 
   const titleMatches = queryTerms.filter((term) => titleTerms.has(term)).length;
   const license = String(result.license || "").toLowerCase();
@@ -73,8 +75,8 @@ function attributionFor(result, licenseLabel) {
 
 /**
  * Search Openverse for distinct, commercially reusable photographs.
- * Only CC0 and public-domain photographs are accepted, avoiding attribution
- * requirements and restrictive reuse terms.
+ * Accepts commercially reusable CC0, public-domain, CC BY and CC BY-SA
+ * photographs. Attribution is included for display wherever the licence requires it.
  */
 export async function findCommercialPhoto(query, options = {}) {
   const queryTerms = [...new Set(terms(query))];
