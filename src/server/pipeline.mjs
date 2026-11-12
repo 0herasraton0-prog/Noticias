@@ -196,7 +196,7 @@ export async function runEditorialCycle(sql, cycle) {
         throw new Error("Candidate has no recent event date; skipped before research");
       }
       const image = await pickCover(candidate, usedCoverUrls);
-      if (!image?.url) console.warn("No relevant free cover photo found; publishing with the neutral category placeholder", JSON.stringify({ title: candidate.title, category: candidate.category }));
+      if (!image?.url) throw new Error("No relevant reusable cover photo found; skipped before spending article-writing tokens");
 
       const researchPack = await research(candidate, now);
       const article = await writeAndReview(candidate, researchPack);
