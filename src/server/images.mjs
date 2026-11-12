@@ -13,17 +13,17 @@ const STOP_WORDS = new Set([
 ]);
 
 function plainText(value = "") {
-  return String(value).replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/\\s+/g, " ").trim();
+  return String(value).replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
 }
 
 function terms(value) {
-  return plainText(value).normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ").split(/\\s+/)
+  return plainText(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ").split(/\s+/)
     .filter((word) => word.length >= 3 && !STOP_WORDS.has(word));
 }
 
 function normalizedUrl(value) {
-  try { const url = new URL(value); url.hash = ""; url.search = ""; return url.toString().replace(/\\/$/, "").toLowerCase(); }
+  try { const url = new URL(value); url.hash = ""; url.search = ""; return url.toString().replace(/\/$/, "").toLowerCase(); }
   catch { return String(value || "").trim().toLowerCase(); }
 }
 
@@ -58,7 +58,7 @@ async function searchOpenverse(query, excluded) {
     const license = ALLOWED_LICENSES.get(String(item.license || "").toLowerCase());
     if (!license || item.mature || isExcluded(item, excluded) || (item.width && item.width < 500)) continue;
     const url = item.thumbnail || item.url;
-    if (!url || !/^https:\\/\\//i.test(url)) continue;
+    if (!url || !/^https:\/\//i.test(url)) continue;
     const score = scoreFor(query, item.title, item.tags || []);
     if (!score) continue;
     candidates.push({
@@ -102,8 +102,8 @@ async function searchWikimedia(query, excluded) {
     if (!isOpen) continue;
     const url = info.thumburl || info.url;
     const sourceUrl = page.canonicalurl || "https://commons.wikimedia.org/wiki/" + encodeURIComponent(page.title.replaceAll(" ", "_"));
-    if (!url || !/^https:\\/\\//i.test(url) || isExcluded({ id: page.title, url, sourceUrl }, excluded)) continue;
-    const title = plainText(page.title.replace(/^File:/, "").replace(/\\.[^.]+$/, "").replaceAll("_", " "));
+    if (!url || !/^https:\/\//i.test(url) || isExcluded({ id: page.title, url, sourceUrl }, excluded)) continue;
+    const title = plainText(page.title.replace(/^File:/, "").replace(/\.[^.]+$/, "").replaceAll("_", " "));
     const score = scoreFor(query, title);
     if (!score) continue;
     const license = /public domain/i.test(licenseText) ? "Dominio público" : licenseText;
