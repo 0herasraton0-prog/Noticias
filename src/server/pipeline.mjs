@@ -1,4 +1,4 @@
-import { CATEGORY_VISUAL_QUERIES, EDITORIAL_CATEGORIES } from "./categories.mjs";
+import { CATEGORY_VISUAL_QUERIES, EDITORIAL_CATEGORIES, normalizeEditorialCategory } from "./categories.mjs";
 import { citationsFrom, structuredResponse } from "./openai.mjs";
 import { findCommercialPhoto } from "./images.mjs";
 import { ARTICLE_SCHEMA, CANDIDATES_SCHEMA, DISCOVERY_INSTRUCTIONS, RESEARCH_INSTRUCTIONS, REVIEW_INSTRUCTIONS, REVIEW_SCHEMA, RESEARCH_SCHEMA, WRITER_INSTRUCTIONS } from "./prompts.mjs";
@@ -93,7 +93,7 @@ async function writeAndReview(candidate, researchPack) {
     }));
 
     article.event_date = candidate.kind === "current" ? researchPack.dossier.event_date : null;
-    article.category = candidate.category;
+    article.category = normalizeEditorialCategory(candidate.category || article.category, { title: candidate.title, tags: article.tags || [] });
     const issues = [];
     if (!Array.isArray(article.body) || article.body.length < 5 || article.body.some((paragraph) => wordCount(paragraph) < 20 || wordCount(paragraph) > 180)) {
       issues.push("El artículo debe tener al menos cinco párrafos de 20 a 180 palabras.");
