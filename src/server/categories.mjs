@@ -50,22 +50,22 @@ function normalized(value) {
 }
 
 export function normalizeEditorialCategory(value, article = {}) {
+  const subject = normalized([article.title, ...(article.tags || [])].join(" "));
+  // Strong subject clues override a generic or incorrect model category.
+  if (/\\b(espacio|orbita|planeta|astro|nasa|sat[eé]lite|universo|astronaut|darpa|astra)\\b/.test(subject)) return "Espacio y universo";
+  if (/\\b(iglesia|papa|religion|misa|tradicion|cultura|ceremonia|patrimonio)\\b/.test(subject)) return "Cultura y tradiciones";
+  if (/\\b(policia|suceso|crimen|explosion|rescate|migrante|huelga|banco|gobierno|eleccion|tribunal|presidente|ministro|elecciones)\\b/.test(subject)) return "Datos sorprendentes y vida cotidiana";
+  if (/\\b(clima|temperatura|cop\\d+|calentamiento|medioambiente|el nino|atmosfera|ciencia|cientifico|investigacion)\\b/.test(subject)) return "Ciencia";
+  if (/\\b(fosil|arqueolog|maya|ruinas|prehistoria|civilizacion|antiguo|excavacion)\\b/.test(subject)) return "Historia y arqueología";
+  if (/\\b(animal|ave|pajaro|dinosaurio|ballena|bosque|fauna|flora|naturaleza|especie)\\b/.test(subject)) return "Naturaleza y animales";
+  if (/\\b(robot|tecnologia|invent|computador|inteligencia artificial|circuito|software)\\b/.test(subject)) return "Tecnología e inventos";
+  if (/\\b(rio|montana|isla|desierto|canon|paisaje|geografia|cueva|territorio)\\b/.test(subject)) return "Geografía y lugares";
+  if (/\\b(cerebro|cuerpo|mente|salud|biologia|medicina)\\b/.test(subject)) return "Cuerpo y mente";
+  if (/\\b(actor|actriz|cantante|cine|pelicula|serie|entretenimiento|famoso)\\b/.test(subject)) return "Famosos y entretenimiento";
+
   const exact = EDITORIAL_CATEGORIES.find((category) => normalized(category) === normalized(value));
   if (exact) return exact;
-
   const alias = LEGACY_CATEGORY_ALIASES.get(normalized(value));
   if (alias) return alias;
-
-  const subject = normalized([value, article.title, ...(article.tags || [])].join(" "));
-  if (/\b(espacio|orbita|planeta|astro|nasa|sat[eé]lite|universo|astronaut|darpa|astra)\b/.test(subject)) return "Espacio y universo";
-  if (/\b(iglesia|papa|religion|misa|tradicion|cultura|ceremonia|patrimonio)\b/.test(subject)) return "Cultura y tradiciones";
-  if (/\b(policia|suceso|crimen|explosion|rescate|migrante|huelga|banco|gobierno|eleccion|tribunal)\b/.test(subject)) return "Datos sorprendentes y vida cotidiana";
-  if (/\b(clima|temperatura|cop\d+|calentamiento|medioambiente|el nino|atmosfera)\b/.test(subject)) return "Ciencia";
-  if (/\b(fosil|arqueolog|maya|ruinas|prehistoria|civilizacion|antiguo)\b/.test(subject)) return "Historia y arqueología";
-  if (/\b(animal|ave|dinosaurio|ballena|bosque|fauna|flora|naturaleza)\b/.test(subject)) return "Naturaleza y animales";
-  if (/\b(robot|tecnologia|invent|computador|inteligencia artificial|circuito)\b/.test(subject)) return "Tecnología e inventos";
-  if (/\b(rio|montana|isla|desierto|canon|paisaje|geografia|cueva)\b/.test(subject)) return "Geografía y lugares";
-  if (/\b(cerebro|cuerpo|mente|salud|biologia|medicina)\b/.test(subject)) return "Cuerpo y mente";
-  if (/\b(actor|actriz|cantante|cine|pelicula|serie|entretenimiento|famoso)\b/.test(subject)) return "Famosos y entretenimiento";
   return "Datos sorprendentes y vida cotidiana";
 }
