@@ -6,10 +6,15 @@ export default async () => {
   try {
     const articles = await sql`
       SELECT a.slug, a.title, a.dek, a.kind, a.category, a.region, a.published_at, a.cover_url,
-             m.views, m.engaged_seconds, m.next_article_clicks
-      FROM article_metrics_daily m JOIN articles a ON a.id = m.article_id
-      WHERE m.day = current_date AND a.status = 'published' AND a.published_at <= now()
-      ORDER BY m.views DESC, m.engaged_seconds DESC LIMIT 10
+             COALESCE(SUM(m.views), 0) AS views
+      FROM articles a
+      LEFT JOIN article_metrics_daily m
+        ON m.article_id = a.id AND m.day >= current_date - 5 AND m.day <= current_date
+      WHERE a.status = 'published' AND a.published_at <= now() - interval '3 days'
+        AND a.published_at > now() - interval '5 days'
+      GROUP BY a.id
+      ORDER BY views DESC, a.published_at DESC
+      LIMIT 5
     `;
     return Response.json({ articles }, { headers: { "Netlify-CDN-Cache-Control": "public, max-age=60, stale-while-revalidate=120, durable" } });
   } catch (error) {
