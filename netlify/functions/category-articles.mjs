@@ -23,8 +23,9 @@ export default async (request) => {
     }));
 
     // Persist corrected categories so curiosities remain in their subject archive.
+    const storedCategories = new Map(archive.map((article) => [article.id, article.category]));
     for (const article of articles) {
-      if (article.category !== archive.find((row) => row.id === article.id)?.category) {
+      if (article.category !== storedCategories.get(article.id)) {
         await sql`UPDATE articles SET category = ${article.category} WHERE id = ${article.id}`;
       }
     }
