@@ -14,14 +14,21 @@ export default async (request) => {
       SELECT id, slug, title, dek, kind, category, region, event_date, published_at,
              cover_url, cover_source_url, cover_credit, cover_license, tags, reading_minutes
       FROM articles
-      WHERE status = 'published' AND published_at <= now()
-      ORDER BY published_at DESC LIMIT 1000
+      WHERE kind = 'curiosity' AND status = 'published' AND published_at <= now()
+      ORDER BY published_at DESC
     `;
-    const articles = archive
-      .map((article) => ({ ...article, category: normalizeEditorialCategory(article.category, article) }))
-      .filter((article) => article.category === category)
-      .slice(0, 60);
-    return Response.json({ category, articles });
+    const articles = archive.map((article) => ({
+      ...article,
+      category: normalizeEditorialCategory(article.category, article),
+    }));
+
+    // Persist corrected categories so curiosities remain in their subject archive.
+    for (const article of articles) {
+      if (article.category !== archive.find((row) => row.id === article.id)?.category) {
+        await sql`UPDATE articles SET category = ${article.category} WHERE id = ${article.id}`;
+      }
+    }
+    return Response.json({ category, articles: articles.filter((article) => article.category === category) });
   } catch (error) {
     console.error("Category query failed", error);
     return Response.json({ articles: [] }, { status: 500 });
